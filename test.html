@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Info API Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .ip-display {
+            background-color: #e7f3ff;
+            border: 2px solid #007bff;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .ip-label {
+            font-weight: bold;
+            color: #007bff;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .ip-value {
+            font-size: 24px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #333;
+        }
+        .summary-info {
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .summary-label {
+            font-weight: bold;
+            color: #495057;
+        }
+        .summary-value {
+            font-family: monospace;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>User Info API Test</h1>
+        <p>Click the button below to test the user info collection API:</p>
+        
+        <button onclick="getUserInfo()">Collect User Information</button>
+        
+        <div id="ip-section" style="display: none;">
+            <div class="ip-display">
+                <div class="ip-label">Your Network IP Address</div>
+                <div class="ip-value" id="ip-value">-</div>
+            </div>
+        </div>
+        
+        <div id="summary-section" style="display: none;">
+            <div class="summary-info">
+                <h3>Summary Information</h3>
+                <div id="summary-content"></div>
+            </div>
+        </div>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function getUserInfo() {
+            const resultDiv = document.getElementById('result');
+            const ipSection = document.getElementById('ip-section');
+            const summarySection = document.getElementById('summary-section');
+            const ipValue = document.getElementById('ip-value');
+            const summaryContent = document.getElementById('summary-content');
+            
+            resultDiv.innerHTML = '<div class="loading">Collecting user information...</div>';
+            ipSection.style.display = 'none';
+            summarySection.style.display = 'none';
+            
+            try {
+                // Collect additional device information that JavaScript can provide
+                const deviceInfo = {
+                    screenResolution: `${screen.width}x${screen.height}`,
+                    colorDepth: screen.colorDepth,
+                    pixelDepth: screen.pixelDepth,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: navigator.language,
+                    platform: navigator.platform,
+                    cookieEnabled: navigator.cookieEnabled,
+                    onlineStatus: navigator.onLine,
+                    hardwareConcurrency: navigator.hardwareConcurrency,
+                    deviceMemory: navigator.deviceMemory,
+                    maxTouchPoints: navigator.maxTouchPoints
+                };
+
+                // Make API call
+                const response = await fetch('http://localhost:3001/api/user-info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(deviceInfo)
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Display IP prominently
+                    ipValue.textContent = data.data.network.ip || 'Not detected';
+                    ipSection.style.display = 'block';
+                    
+                    // Display summary information
+                    const summary = data.summary;
+                    summaryContent.innerHTML = `
+                        <div class="summary-item">
+                            <span class="summary-label">IP Address:</span>
+                            <span class="summary-value">${summary.ip || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Country:</span>
+                            <span class="summary-value">${summary.country || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">City:</span>
+                            <span class="summary-value">${summary.city || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Browser:</span>
+                            <span class="summary-value">${summary.browser || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">OS:</span>
+                            <span class="summary-value">${summary.os || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Device:</span>
+                            <span class="summary-value">${summary.device || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Screen Resolution:</span>
+                            <span class="summary-value">${data.data.device.screenResolution || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Timezone:</span>
+                            <span class="summary-value">${data.data.device.timezone || 'Unknown'}</span>
+                        </div>
+                    `;
+                    summarySection.style.display = 'block';
+                    
+                    // Show full JSON response
+                    resultDiv.innerHTML = `<details>
+                        <summary><strong>Full API Response (Click to expand)</strong></summary>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </details>`;
+                } else {
+                    resultDiv.innerHTML = `<div style="color: red;">Error: ${data.message}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div style="color: red;">Error: ${error.message}</div>`;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
