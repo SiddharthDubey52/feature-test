@@ -12,12 +12,40 @@ const userInfoSchema = new mongoose.Schema({
         userAgent: { type: String, default: null },
         acceptLanguage: { type: String, default: null },
         acceptEncoding: { type: String, default: null },
+        acceptCharset: { type: String, default: null },
+        accept: { type: String, default: null },
         connection: { type: String, default: null },
         host: { type: String, default: null },
         origin: { type: String, default: null },
         referer: { type: String, default: null },
         xForwardedFor: { type: String, default: null },
-        xRealIp: { type: String, default: null }
+        xRealIp: { type: String, default: null },
+        xForwardedProto: { type: String, default: null },
+        xForwardedHost: { type: String, default: null },
+        authorization: { type: String, default: null },
+        cookie: { type: String, default: null },
+        cacheControl: { type: String, default: null },
+        dnt: { type: String, default: null },
+        upgradeInsecureRequests: { type: String, default: null },
+        secFetchSite: { type: String, default: null },
+        secFetchMode: { type: String, default: null },
+        secFetchUser: { type: String, default: null },
+        secFetchDest: { type: String, default: null },
+        protocol: { type: String, default: null },
+        secure: { type: Boolean, default: null },
+        method: { type: String, default: null },
+        url: { type: String, default: null },
+        httpVersion: { type: String, default: null },
+        proxyDetection: {
+            isProxy: { type: Boolean, default: false },
+            detectedHeaders: [{ type: String }],
+            confidence: { type: Number, default: 0 },
+            type: { type: String, default: null }
+        },
+        networkTiming: {
+            hasTimingData: { type: Boolean, default: false },
+            note: { type: String, default: null }
+        }
     },
     device: {
         type: { type: String, default: 'unknown' },
@@ -75,6 +103,75 @@ const userInfoSchema = new mongoose.Schema({
         osVersion: { type: String, default: 'unknown' },
         architecture: { type: String, default: 'unknown' },
         cpu: { type: String, default: 'unknown' }
+    },
+    // Advanced tracking fields (like IPLogger)
+    fingerprint: {
+        hash: { type: String, default: null },
+        components: {
+            userAgent: { type: Boolean, default: false },
+            screen: { type: Boolean, default: false },
+            timezone: { type: Boolean, default: false },
+            language: { type: Boolean, default: false },
+            colorDepth: { type: Boolean, default: false },
+            hardware: { type: Boolean, default: false },
+            headers: { type: Boolean, default: false }
+        },
+        confidence: { type: Number, default: 0 },
+        uniquenessScore: { type: Number, default: 0 }
+    },
+    security: {
+        isProxy: { type: Boolean, default: false },
+        isVPN: {
+            likely: { type: Boolean, default: false },
+            indicators: [{ type: String }],
+            confidence: { type: Number, default: 0 }
+        },
+        isTor: {
+            isTor: { type: Boolean, default: false },
+            confidence: { type: Number, default: 0 },
+            note: { type: String, default: null }
+        },
+        isBot: {
+            isBot: { type: Boolean, default: false },
+            matchedPatterns: [{ type: String }],
+            confidence: { type: Number, default: 0 },
+            type: { type: String, default: null }
+        },
+        threatLevel: {
+            score: { type: Number, default: 0 },
+            level: { type: String, default: 'Low' },
+            reasons: [{ type: String }],
+            recommendation: { type: String, default: null }
+        },
+        ssl: {
+            protocol: { type: String, default: null },
+            secure: { type: Boolean, default: false },
+            cipher: { type: String, default: null }
+        },
+        headers: {
+            hasXForwardedFor: { type: Boolean, default: false },
+            hasXRealIP: { type: Boolean, default: false },
+            hasVia: { type: Boolean, default: false },
+            hasXOriginalIP: { type: Boolean, default: false },
+            suspiciousHeaders: [{ type: String }]
+        }
+    },
+    tracking: {
+        sessionId: { type: String, default: null },
+        visitCount: { type: Number, default: 1 },
+        firstSeen: { type: Date, default: null },
+        lastSeen: { type: Date, default: null },
+        referrer: { type: String, default: null },
+        userBehavior: {
+            screenTime: { type: Number, default: null },
+            clickPattern: { type: String, default: null },
+            scrollBehavior: { type: String, default: null },
+            keyboardEvents: { type: String, default: null },
+            mouseMovement: { type: String, default: null },
+            pageVisibility: { type: String, default: null },
+            interactionScore: { type: Number, default: 0 },
+            behaviorFlags: [{ type: String }]
+        }
     }
 }, {
     timestamps: true, // Adds createdAt and updatedAt
@@ -86,6 +183,9 @@ userInfoSchema.index({ 'network.ip': 1 });
 userInfoSchema.index({ timestamp: -1 });
 userInfoSchema.index({ 'geolocation.country': 1 });
 userInfoSchema.index({ 'browser.name': 1 });
+userInfoSchema.index({ 'fingerprint.hash': 1 });
+userInfoSchema.index({ 'tracking.sessionId': 1 });
+userInfoSchema.index({ 'security.threatLevel.level': 1 });
 
 // Create the model
 const UserInfoModel = mongoose.model('UserInfo', userInfoSchema);
@@ -108,12 +208,32 @@ class UserInfo {
                 userAgent: data.network?.userAgent || null,
                 acceptLanguage: data.network?.acceptLanguage || null,
                 acceptEncoding: data.network?.acceptEncoding || null,
+                acceptCharset: data.network?.acceptCharset || null,
+                accept: data.network?.accept || null,
                 connection: data.network?.connection || null,
                 host: data.network?.host || null,
                 origin: data.network?.origin || null,
                 referer: data.network?.referer || null,
                 xForwardedFor: data.network?.xForwardedFor || null,
-                xRealIp: data.network?.xRealIp || null
+                xRealIp: data.network?.xRealIp || null,
+                xForwardedProto: data.network?.xForwardedProto || null,
+                xForwardedHost: data.network?.xForwardedHost || null,
+                authorization: data.network?.authorization || null,
+                cookie: data.network?.cookie || null,
+                cacheControl: data.network?.cacheControl || null,
+                dnt: data.network?.dnt || null,
+                upgradeInsecureRequests: data.network?.upgradeInsecureRequests || null,
+                secFetchSite: data.network?.secFetchSite || null,
+                secFetchMode: data.network?.secFetchMode || null,
+                secFetchUser: data.network?.secFetchUser || null,
+                secFetchDest: data.network?.secFetchDest || null,
+                protocol: data.network?.protocol || null,
+                secure: data.network?.secure || null,
+                method: data.network?.method || null,
+                url: data.network?.url || null,
+                httpVersion: data.network?.httpVersion || null,
+                proxyDetection: data.network?.proxyDetection || null,
+                networkTiming: data.network?.networkTiming || null
             },
             device: {
                 type: data.device?.type || 'unknown',
@@ -171,7 +291,10 @@ class UserInfo {
                 osVersion: data.system?.osVersion || 'unknown',
                 architecture: data.system?.architecture || 'unknown',
                 cpu: data.system?.cpu || 'unknown'
-            }
+            },
+            fingerprint: data.fingerprint || null,
+            security: data.security || null,
+            tracking: data.tracking || null
         };
 
         return validatedData;

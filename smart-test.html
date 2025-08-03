@@ -141,19 +141,177 @@
 </head>
 <body>
     <div class="container">
-        <h1>🧠 Smart User Info Collection</h1>
+        <h1>🔍 Advanced User Tracker</h1>
         <p class="subtitle">
-            Collects accurate device and location information using server-side intelligence<br>
-            <strong>Now with GPS location support!</strong> Click the button to allow precise location access.
+            Comprehensive user tracking and device fingerprinting system<br>
+            <strong>Like IPLogger - Collects detailed information about visitors!</strong> Includes location, device fingerprinting, security analysis, and behavioral tracking.
         </p>
         
-        <button onclick="collectInfo()">🚀 Analyze My Information (with GPS location)</button>
-        <button onclick="collectInfo(true)" style="background: linear-gradient(45deg, #28a745, #20c997); margin-top: 10px;">🌍 Demo with Real Location (Simulated)</button>
+        <button onclick="collectInfo()">🚀 Track My Information (Full Analysis)</button>
+        <button onclick="collectInfo(true)" style="background: linear-gradient(45deg, #28a745, #20c997); margin-top: 10px;">🌍 Demo with Public IP Simulation</button>
         
         <div id="result"></div>
     </div>
 
     <script>
+        // Initialize user behavior tracking
+        window.mouseEvents = [];
+        window.clickEvents = [];
+        window.scrollEvents = [];
+        window.keyEvents = [];
+
+        // Track user interactions
+        document.addEventListener('mousemove', (e) => {
+            window.mouseEvents.push({ x: e.clientX, y: e.clientY, time: Date.now() });
+            if (window.mouseEvents.length > 100) window.mouseEvents.shift(); // Keep only last 100
+        });
+
+        document.addEventListener('click', (e) => {
+            window.clickEvents.push({ x: e.clientX, y: e.clientY, time: Date.now() });
+            if (window.clickEvents.length > 50) window.clickEvents.shift();
+        });
+
+        document.addEventListener('scroll', () => {
+            window.scrollEvents.push({ scrollY: window.scrollY, time: Date.now() });
+            if (window.scrollEvents.length > 50) window.scrollEvents.shift();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            window.keyEvents.push({ key: e.key, time: Date.now() });
+            if (window.keyEvents.length > 100) window.keyEvents.shift();
+        });
+
+        // Canvas fingerprinting
+        function getCanvasFingerprint() {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Draw various shapes and text
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.fillText('Canvas fingerprinting text 🎨', 2, 2);
+                
+                ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+                ctx.fillRect(100, 5, 80, 20);
+                
+                ctx.fillStyle = '#f60';
+                ctx.fillRect(150, 15, 62, 20);
+                
+                return canvas.toDataURL();
+            } catch (e) {
+                return 'Canvas fingerprinting failed';
+            }
+        }
+
+        // WebGL fingerprinting
+        function getWebGLFingerprint() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                
+                if (!gl) return 'WebGL not supported';
+                
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                return {
+                    vendor: gl.getParameter(gl.VENDOR),
+                    renderer: gl.getParameter(gl.RENDERER),
+                    version: gl.getParameter(gl.VERSION),
+                    shadingLanguageVersion: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+                    unmaskedVendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : null,
+                    unmaskedRenderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : null
+                };
+            } catch (e) {
+                return 'WebGL fingerprinting failed';
+            }
+        }
+
+        // Audio fingerprinting
+        async function getAudioFingerprint() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const analyser = audioContext.createAnalyser();
+                const gainNode = audioContext.createGain();
+                const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(10000, audioContext.currentTime);
+                
+                gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+                
+                oscillator.connect(analyser);
+                analyser.connect(scriptProcessor);
+                scriptProcessor.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.start(0);
+                
+                return new Promise((resolve) => {
+                    scriptProcessor.onaudioprocess = function(bins) {
+                        const input = bins.inputBuffer.getChannelData(0);
+                        let fingerprint = 0;
+                        for (let i = 0; i < input.length; i++) {
+                            fingerprint += Math.abs(input[i]);
+                        }
+                        oscillator.stop();
+                        scriptProcessor.disconnect();
+                        resolve(fingerprint.toString());
+                    };
+                });
+            } catch (e) {
+                return 'Audio fingerprinting failed';
+            }
+        }
+
+        // Font detection
+        function detectAvailableFonts() {
+            const baseFonts = ['monospace', 'sans-serif', 'serif'];
+            const testFonts = [
+                'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana',
+                'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS',
+                'Trebuchet MS', 'Arial Black', 'Impact', 'Lucida Sans Unicode',
+                'Tahoma', 'Geneva', 'Lucida Console', 'Monaco', 'Brush Script MT'
+            ];
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = '72px monospace';
+            const baseWidth = context.measureText('mmmmmmmmmmlli').width;
+            
+            const availableFonts = [];
+            
+            for (const font of testFonts) {
+                context.font = `72px ${font}, monospace`;
+                const width = context.measureText('mmmmmmmmmmlli').width;
+                if (width !== baseWidth) {
+                    availableFonts.push(font);
+                }
+            }
+            
+            return availableFonts;
+        }
+
+        // Permission checking
+        async function checkPermissions() {
+            const permissions = {};
+            const permissionsToCheck = [
+                'geolocation', 'notifications', 'camera', 'microphone',
+                'clipboard-read', 'clipboard-write'
+            ];
+            
+            for (const permission of permissionsToCheck) {
+                try {
+                    const result = await navigator.permissions.query({ name: permission });
+                    permissions[permission] = result.state;
+                } catch (e) {
+                    permissions[permission] = 'unknown';
+                }
+            }
+            
+            return permissions;
+        }
+
         // Helper function to get current position with better error handling
         function getCurrentPosition(options = {}) {
             return new Promise((resolve, reject) => {
@@ -203,29 +361,90 @@
             if (demoMode) {
                 resultDiv.innerHTML = '<div class="loading">🌍 Simulating analysis with real public IP for demonstration...</div>';
             } else {
-                resultDiv.innerHTML = '<div class="loading">🔍 Analyzing your device and location using advanced server-side detection...</div>';
+                resultDiv.innerHTML = '<div class="loading">🔍 Analyzing your device and collecting comprehensive tracking data (like IPLogger)...</div>';
             }
             
             try {
-                // Collect basic info without asking for permissions
+                // Start collecting comprehensive data (like IPLogger)
+                const startTime = performance.now();
+                
+                // Basic device info
                 const basicInfo = {
-                    // Screen info (available without permissions)
                     screenResolution: `${screen.width}x${screen.height}`,
                     colorDepth: screen.colorDepth,
                     pixelRatio: window.devicePixelRatio,
-                    
-                    // Browser info (available without permissions)
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: navigator.language,
+                    languages: navigator.languages,
                     platform: navigator.platform,
                     cookieEnabled: navigator.cookieEnabled,
                     onlineStatus: navigator.onLine,
-                    
-                    // Hardware info (available without permissions)
                     hardwareConcurrency: navigator.hardwareConcurrency,
                     deviceMemory: navigator.deviceMemory,
                     maxTouchPoints: navigator.maxTouchPoints,
-                    touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0
+                    touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+                    
+                    // Advanced browser fingerprinting data
+                    userAgent: navigator.userAgent,
+                    vendor: navigator.vendor,
+                    product: navigator.product,
+                    appName: navigator.appName,
+                    appVersion: navigator.appVersion,
+                    buildID: navigator.buildID,
+                    
+                    // Network information
+                    connection: navigator.connection ? {
+                        effectiveType: navigator.connection.effectiveType,
+                        downlink: navigator.connection.downlink,
+                        rtt: navigator.connection.rtt,
+                        saveData: navigator.connection.saveData
+                    } : null,
+                    
+                    // Performance data
+                    performance: {
+                        timing: performance.timing ? {
+                            navigationStart: performance.timing.navigationStart,
+                            loadEventEnd: performance.timing.loadEventEnd,
+                            domContentLoadedEventEnd: performance.timing.domContentLoadedEventEnd
+                        } : null,
+                        memory: performance.memory ? {
+                            usedJSHeapSize: performance.memory.usedJSHeapSize,
+                            totalJSHeapSize: performance.memory.totalJSHeapSize,
+                            jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
+                        } : null
+                    },
+                    
+                    // Canvas fingerprinting
+                    canvasFingerprint: getCanvasFingerprint(),
+                    
+                    // WebGL fingerprinting  
+                    webglFingerprint: getWebGLFingerprint(),
+                    
+                    // Audio fingerprinting
+                    audioFingerprint: await getAudioFingerprint(),
+                    
+                    // Font detection
+                    availableFonts: detectAvailableFonts(),
+                    
+                    // Plugin information
+                    plugins: Array.from(navigator.plugins).map(plugin => ({
+                        name: plugin.name,
+                        filename: plugin.filename,
+                        description: plugin.description
+                    })),
+                    
+                    // Permissions
+                    permissions: await checkPermissions(),
+                    
+                    // User behavior tracking
+                    userBehavior: {
+                        screenTime: performance.now() - startTime,
+                        mouseMovement: window.mouseEvents || [],
+                        clickPattern: window.clickEvents || [],
+                        scrollBehavior: window.scrollEvents || [],
+                        keyboardEvents: window.keyEvents || [],
+                        pageVisibility: document.visibilityState
+                    }
                 };
 
                 // Try to get precise location using browser geolocation API
@@ -374,7 +593,80 @@
                     </div>
 
                     <div class="info-card">
-                        <h3>📱 Device Information</h3>
+                        <h3>� Security Analysis</h3>
+                        ${data.data.security ? `
+                        <div class="info-item">
+                            <span class="info-label">Threat Level:</span>
+                            <span class="info-value" style="color: ${data.data.security.threatLevel.level === 'High' ? '#dc3545' : 
+                                data.data.security.threatLevel.level === 'Medium' ? '#ffc107' : '#28a745'}">
+                                ${data.data.security.threatLevel.level} (${data.data.security.threatLevel.score}/100)
+                            </span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Proxy/VPN:</span>
+                            <span class="info-value">${data.data.security.isProxy ? '⚠️ Detected' : '✅ None'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Bot Detection:</span>
+                            <span class="info-value">${data.data.security.isBot.isBot ? 
+                                `⚠️ ${data.data.security.isBot.type} (${data.data.security.isBot.confidence}%)` : 
+                                '✅ Human User'}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Connection:</span>
+                            <span class="info-value">${data.data.security.ssl.secure ? '🔐 Secure (HTTPS)' : '🔓 Insecure (HTTP)'}</span>
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="info-card">
+                        <h3>🔍 Device Fingerprint</h3>
+                        ${data.data.fingerprint ? `
+                        <div class="info-item">
+                            <span class="info-label">Fingerprint ID:</span>
+                            <span class="info-value" style="font-family: monospace; font-size: 0.8em;">${data.data.fingerprint.hash.substring(0, 16)}...</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Uniqueness Score:</span>
+                            <span class="info-value">${data.data.fingerprint.uniquenessScore}/100</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Confidence:</span>
+                            <span class="info-value">${data.data.fingerprint.confidence}%</span>
+                        </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="info-card">
+                        <h3>👤 Tracking Information</h3>
+                        ${data.data.tracking ? `
+                        <div class="info-item">
+                            <span class="info-label">Session ID:</span>
+                            <span class="info-value" style="font-family: monospace;">${data.data.tracking.sessionId}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Visit Count:</span>
+                            <span class="info-value">${data.data.tracking.visitCount}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">First Seen:</span>
+                            <span class="info-value">${new Date(data.data.tracking.firstSeen).toLocaleString()}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">User Interaction:</span>
+                            <span class="info-value">${data.data.tracking.userBehavior.interactionScore}/100</span>
+                        </div>
+                        ${data.data.tracking.referrer ? `
+                        <div class="info-item">
+                            <span class="info-label">Referrer:</span>
+                            <span class="info-value">${data.data.tracking.referrer}</span>
+                        </div>
+                        ` : ''}
+                        ` : ''}
+                    </div>
+
+                    <div class="info-card">
+                        <h3>�📱 Device Information</h3>
                         <div class="info-item">
                             <span class="info-label">Device:</span>
                             <span class="info-value">${device.vendor} ${device.model}</span>

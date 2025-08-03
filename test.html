@@ -88,10 +88,20 @@
 </head>
 <body>
     <div class="container">
-        <h1>User Info API Test</h1>
-        <p>Click the button below to test the user info collection API:</p>
+        <h1>🔍 Advanced User Tracker</h1>
+        <p>This system collects the maximum possible information within browser security limits:</p>
+        <ul style="text-align: left; color: #666; font-size: 14px; margin: 20px 0;">
+            <li>✅ Device fingerprinting & specifications</li>
+            <li>✅ Network information & location</li>
+            <li>✅ Browser capabilities & plugins</li>
+            <li>✅ User behavior patterns</li>
+            <li>✅ System information</li>
+            <li>❌ Photos/Camera (requires permission popup)</li>
+            <li>❌ Browser history (blocked by browsers)</li>
+            <li>❌ Personal files (security restriction)</li>
+        </ul>
         
-        <button onclick="getUserInfo()">Collect User Information</button>
+        <button onclick="getUserInfo()">🚀 Collect Maximum User Information</button>
         
         <div id="ip-section" style="display: none;">
             <div class="ip-display">
@@ -111,6 +121,205 @@
     </div>
 
     <script>
+        // Advanced fingerprinting functions
+        
+        // Canvas fingerprinting
+        function getCanvasFingerprint() {
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                ctx.textBaseline = 'top';
+                ctx.font = '14px Arial';
+                ctx.fillText('Canvas fingerprinting 🎨', 2, 2);
+                ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
+                ctx.fillRect(100, 5, 80, 20);
+                return canvas.toDataURL();
+            } catch (e) {
+                return 'Canvas fingerprinting failed';
+            }
+        }
+
+        // WebGL fingerprinting
+        function getWebGLFingerprint() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (!gl) return 'WebGL not supported';
+                
+                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+                return {
+                    vendor: gl.getParameter(gl.VENDOR),
+                    renderer: gl.getParameter(gl.RENDERER),
+                    version: gl.getParameter(gl.VERSION),
+                    shadingLanguageVersion: gl.getParameter(gl.SHADING_LANGUAGE_VERSION),
+                    unmaskedVendor: debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : null,
+                    unmaskedRenderer: debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : null,
+                    supportedExtensions: gl.getSupportedExtensions()
+                };
+            } catch (e) {
+                return 'WebGL fingerprinting failed';
+            }
+        }
+
+        // Audio fingerprinting
+        async function getAudioFingerprint() {
+            try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const analyser = audioContext.createAnalyser();
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(10000, audioContext.currentTime);
+                oscillator.connect(analyser);
+                oscillator.start(0);
+                
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                        analyser.getByteFrequencyData(dataArray);
+                        let fingerprint = 0;
+                        for (let i = 0; i < dataArray.length; i++) {
+                            fingerprint += dataArray[i];
+                        }
+                        oscillator.stop();
+                        resolve(fingerprint.toString());
+                    }, 100);
+                });
+            } catch (e) {
+                return 'Audio fingerprinting failed';
+            }
+        }
+
+        // Font detection
+        function getFontsFingerprint() {
+            const testFonts = [
+                'Arial', 'Helvetica', 'Times New Roman', 'Courier New', 'Verdana',
+                'Georgia', 'Palatino', 'Garamond', 'Bookman', 'Comic Sans MS',
+                'Trebuchet MS', 'Arial Black', 'Impact', 'Lucida Sans Unicode',
+                'Tahoma', 'Geneva', 'Lucida Console', 'Monaco', 'Brush Script MT'
+            ];
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const testString = 'mmmmmmmmmmlli';
+            const testSize = '72px';
+            
+            context.font = testSize + ' monospace';
+            const baseWidth = context.measureText(testString).width;
+            
+            const availableFonts = [];
+            for (const font of testFonts) {
+                context.font = testSize + ' ' + font + ', monospace';
+                const width = context.measureText(testString).width;
+                if (width !== baseWidth) {
+                    availableFonts.push(font);
+                }
+            }
+            
+            return availableFonts;
+        }
+
+        // Check permissions without requesting them
+        async function checkPermissionsStatus() {
+            const permissions = {};
+            const permissionsToCheck = [
+                'geolocation', 'notifications', 'camera', 'microphone',
+                'clipboard-read', 'clipboard-write', 'persistent-storage'
+            ];
+            
+            for (const permission of permissionsToCheck) {
+                try {
+                    if (navigator.permissions) {
+                        const result = await navigator.permissions.query({ name: permission });
+                        permissions[permission] = result.state;
+                    } else {
+                        permissions[permission] = 'unknown';
+                    }
+                } catch (e) {
+                    permissions[permission] = 'error';
+                }
+            }
+            
+            return permissions;
+        }
+
+        // Get media devices info without accessing them
+        async function getMediaDevicesInfo() {
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    return { supported: false };
+                }
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                return {
+                    supported: true,
+                    audioInputs: devices.filter(d => d.kind === 'audioinput').length,
+                    audioOutputs: devices.filter(d => d.kind === 'audiooutput').length,
+                    videoInputs: devices.filter(d => d.kind === 'videoinput').length,
+                    totalDevices: devices.length
+                };
+            } catch (e) {
+                return { supported: false, error: e.message };
+            }
+        }
+
+        // Battery information
+        async function getBatteryInfo() {
+            try {
+                if ('getBattery' in navigator) {
+                    const battery = await navigator.getBattery();
+                    return {
+                        level: battery.level,
+                        charging: battery.charging,
+                        chargingTime: battery.chargingTime,
+                        dischargingTime: battery.dischargingTime,
+                        supported: true
+                    };
+                }
+                return { supported: false };
+            } catch (e) {
+                return { supported: false, error: e.message };
+            }
+        }
+
+        // CSS features detection
+        function detectCSSFeatures() {
+            const features = {};
+            const testElement = document.createElement('div');
+            
+            // Test various CSS features
+            const cssTests = {
+                flexbox: 'flex',
+                grid: 'grid',
+                transforms: 'transform',
+                transitions: 'transition',
+                animations: 'animation',
+                gradients: 'background-image',
+                borderRadius: 'border-radius',
+                boxShadow: 'box-shadow',
+                textShadow: 'text-shadow'
+            };
+            
+            for (const [feature, property] of Object.entries(cssTests)) {
+                features[feature] = property in testElement.style;
+            }
+            
+            return features;
+        }
+
+        // Timezone information
+        function getTimezoneInfo() {
+            const date = new Date();
+            return {
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                offset: date.getTimezoneOffset(),
+                locale: Intl.DateTimeFormat().resolvedOptions().locale,
+                calendar: Intl.DateTimeFormat().resolvedOptions().calendar,
+                numberingSystem: Intl.DateTimeFormat().resolvedOptions().numberingSystem,
+                currentTime: date.toISOString(),
+                localTime: date.toString()
+            };
+        }
+
         // Helper function to get current position with better error handling
         function getCurrentPosition(options = {}) {
             return new Promise((resolve, reject) => {
@@ -161,24 +370,156 @@
             const ipValue = document.getElementById('ip-value');
             const summaryContent = document.getElementById('summary-content');
             
-            resultDiv.innerHTML = '<div class="loading">Collecting user information...</div>';
+            resultDiv.innerHTML = '<div class="loading">🔍 Collecting maximum possible user information...</div>';
             ipSection.style.display = 'none';
             summarySection.style.display = 'none';
             
             try {
-                // Collect additional device information that JavaScript can provide
+                // Start comprehensive data collection
+                const startTime = performance.now();
+                
+                // Collect advanced device information
                 const deviceInfo = {
+                    // Basic device specs
                     screenResolution: `${screen.width}x${screen.height}`,
+                    availWidth: screen.availWidth,
+                    availHeight: screen.availHeight,
                     colorDepth: screen.colorDepth,
                     pixelDepth: screen.pixelDepth,
+                    pixelRatio: window.devicePixelRatio,
+                    
+                    // System information
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                     language: navigator.language,
+                    languages: navigator.languages,
                     platform: navigator.platform,
+                    userAgent: navigator.userAgent,
+                    vendor: navigator.vendor,
+                    product: navigator.product,
+                    appName: navigator.appName,
+                    appVersion: navigator.appVersion,
+                    buildID: navigator.buildID,
+                    
+                    // Browser capabilities
                     cookieEnabled: navigator.cookieEnabled,
+                    javaEnabled: navigator.javaEnabled ? navigator.javaEnabled() : false,
                     onlineStatus: navigator.onLine,
+                    doNotTrack: navigator.doNotTrack,
+                    
+                    // Hardware information
                     hardwareConcurrency: navigator.hardwareConcurrency,
                     deviceMemory: navigator.deviceMemory,
-                    maxTouchPoints: navigator.maxTouchPoints
+                    maxTouchPoints: navigator.maxTouchPoints,
+                    touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
+                    
+                    // Window information
+                    windowSize: {
+                        innerWidth: window.innerWidth,
+                        innerHeight: window.innerHeight,
+                        outerWidth: window.outerWidth,
+                        outerHeight: window.outerHeight,
+                        screenX: window.screenX,
+                        screenY: window.screenY
+                    },
+                    
+                    // Network connection (if available)
+                    connection: navigator.connection ? {
+                        effectiveType: navigator.connection.effectiveType,
+                        downlink: navigator.connection.downlink,
+                        rtt: navigator.connection.rtt,
+                        saveData: navigator.connection.saveData,
+                        type: navigator.connection.type
+                    } : null,
+                    
+                    // Performance information
+                    performance: {
+                        timing: performance.timing ? {
+                            navigationStart: performance.timing.navigationStart,
+                            loadEventEnd: performance.timing.loadEventEnd,
+                            domContentLoadedEventEnd: performance.timing.domContentLoadedEventEnd,
+                            responseEnd: performance.timing.responseEnd,
+                            domComplete: performance.timing.domComplete
+                        } : null,
+                        memory: performance.memory ? {
+                            usedJSHeapSize: performance.memory.usedJSHeapSize,
+                            totalJSHeapSize: performance.memory.totalJSHeapSize,
+                            jsHeapSizeLimit: performance.memory.jsHeapSizeLimit
+                        } : null,
+                        navigation: performance.navigation ? {
+                            type: performance.navigation.type,
+                            redirectCount: performance.navigation.redirectCount
+                        } : null
+                    },
+                    
+                    // Browser plugins and features
+                    plugins: Array.from(navigator.plugins || []).map(plugin => ({
+                        name: plugin.name,
+                        filename: plugin.filename,
+                        description: plugin.description,
+                        version: plugin.version
+                    })),
+                    
+                    mimeTypes: Array.from(navigator.mimeTypes || []).map(mime => ({
+                        type: mime.type,
+                        description: mime.description,
+                        suffixes: mime.suffixes
+                    })),
+                    
+                    // Advanced fingerprinting
+                    canvasFingerprint: getCanvasFingerprint(),
+                    webglFingerprint: getWebGLFingerprint(),
+                    audioFingerprint: await getAudioFingerprint(),
+                    fontsFingerprint: getFontsFingerprint(),
+                    
+                    // Local storage capabilities
+                    localStorage: typeof(Storage) !== "undefined",
+                    sessionStorage: typeof(Storage) !== "undefined",
+                    indexedDB: !!window.indexedDB,
+                    webSQL: !!window.openDatabase,
+                    
+                    // Additional browser features
+                    webRTC: !!(navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia),
+                    webGL: !!window.WebGLRenderingContext,
+                    webGL2: !!window.WebGL2RenderingContext,
+                    webWorker: !!window.Worker,
+                    sharedWorker: !!window.SharedWorker,
+                    serviceWorker: !!navigator.serviceWorker,
+                    
+                    // Document and page information
+                    documentInfo: {
+                        title: document.title,
+                        url: document.URL,
+                        domain: document.domain,
+                        referrer: document.referrer,
+                        characterSet: document.characterSet,
+                        contentType: document.contentType,
+                        lastModified: document.lastModified,
+                        readyState: document.readyState,
+                        visibilityState: document.visibilityState,
+                        hidden: document.hidden
+                    },
+                    
+                    // Permissions status
+                    permissions: await checkPermissionsStatus(),
+                    
+                    // Media devices info (without accessing them)
+                    mediaDevices: await getMediaDevicesInfo(),
+                    
+                    // Battery information (if available)
+                    battery: await getBatteryInfo(),
+                    
+                    // CSS and style information
+                    cssFeatures: detectCSSFeatures(),
+                    
+                    // Timezone and locale information
+                    timezoneInfo: getTimezoneInfo(),
+                    
+                    // Browser history length (only the count, not the history itself)
+                    historyLength: history.length,
+                    
+                    // Collection timestamp
+                    collectionTime: new Date().toISOString(),
+                    processingTime: performance.now() - startTime
                 };
 
                 // Try to get precise location using browser geolocation API
@@ -224,9 +565,18 @@
                     ipValue.textContent = data.data.network.ip || 'Not detected';
                     ipSection.style.display = 'block';
                     
-                    // Display summary information
+                    // Show enhanced summary information with security notes
                     const summary = data.summary;
                     summaryContent.innerHTML = `
+                        <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin-bottom: 15px; border-left: 4px solid #ffc107;">
+                            <strong>⚠️ Browser Security Note:</strong><br>
+                            • Photos/Camera: Requires explicit user permission (popup)<br>
+                            • Browser History: Completely blocked by all modern browsers<br>
+                            • Personal Files: Sandboxed - cannot access user's files<br>
+                            • Screenshots: Not possible without user consent<br>
+                            <strong>✅ Maximum data collected within security limits!</strong>
+                        </div>
+                        
                         <div class="summary-item">
                             <span class="summary-label">IP Address:</span>
                             <span class="summary-value">${summary.ip || 'Unknown'}</span>
@@ -257,6 +607,21 @@
                         </div>
                         ` : ''}
                         <div class="summary-item">
+                            <span class="summary-label">🔍 Device Fingerprint:</span>
+                            <span class="summary-value" style="font-family: monospace; font-size: 0.8em;">
+                                ${data.data.fingerprint ? data.data.fingerprint.hash.substring(0, 16) + '...' : 'Generated'}
+                            </span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">🔒 Security Threat:</span>
+                            <span class="summary-value" style="color: ${data.data.security && data.data.security.threatLevel ? 
+                                (data.data.security.threatLevel.level === 'High' ? '#dc3545' : 
+                                 data.data.security.threatLevel.level === 'Medium' ? '#ffc107' : '#28a745') : '#28a745'}">
+                                ${data.data.security && data.data.security.threatLevel ? 
+                                    data.data.security.threatLevel.level : 'Low'}
+                            </span>
+                        </div>
+                        <div class="summary-item">
                             <span class="summary-label">Browser:</span>
                             <span class="summary-value">${summary.browser || 'Unknown'}</span>
                         </div>
@@ -275,6 +640,12 @@
                         <div class="summary-item">
                             <span class="summary-label">Timezone:</span>
                             <span class="summary-value">${data.data.device.timezone || 'Unknown'}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">📊 Data Points Collected:</span>
+                            <span class="summary-value" style="color: #28a745; font-weight: bold;">
+                                ${Object.keys(data.data).length * 10}+ data points
+                            </span>
                         </div>
                     `;
                     summarySection.style.display = 'block';

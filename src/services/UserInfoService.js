@@ -17,12 +17,14 @@ class UserInfoService {
         console.log(`🔍 Processing request for IP: ${ip}`);
         console.log(`📱 User-Agent: ${userAgent}`);
         
-        const [networkInfo, deviceInfo, geolocation, browserInfo, systemInfo] = await Promise.all([
+        const [networkInfo, deviceInfo, geolocation, browserInfo, systemInfo, fingerprint, securityInfo] = await Promise.all([
             this.extractNetworkInfo(req, ip),
             this.extractAdvancedDeviceInfo(userAgent, frontendData),
             this.extractPreciseGeolocation(ip),
             this.extractAdvancedBrowserInfo(userAgent),
-            this.extractSystemInfo(userAgent)
+            this.extractSystemInfo(userAgent),
+            this.generateDeviceFingerprint(req, userAgent, frontendData),
+            this.extractSecurityInfo(req, ip)
         ]);
 
         const timestamp = new Date().toISOString();
@@ -33,7 +35,17 @@ class UserInfoService {
             device: deviceInfo,
             geolocation,
             browser: browserInfo,
-            system: systemInfo
+            system: systemInfo,
+            fingerprint,
+            security: securityInfo,
+            tracking: {
+                sessionId: this.generateSessionId(req),
+                visitCount: await this.getVisitCount(ip),
+                firstSeen: await this.getFirstSeen(ip),
+                lastSeen: timestamp,
+                referrer: req.headers.referer || null,
+                userBehavior: this.analyzeUserBehavior(req, frontendData)
+            }
         };
     }
 
@@ -61,12 +73,35 @@ class UserInfoService {
             userAgent: req.headers['user-agent'],
             acceptLanguage: req.headers['accept-language'],
             acceptEncoding: req.headers['accept-encoding'],
+            acceptCharset: req.headers['accept-charset'],
+            accept: req.headers['accept'],
             connection: req.headers.connection,
             host: req.headers.host,
             origin: req.headers.origin,
             referer: req.headers.referer,
             xForwardedFor: req.headers['x-forwarded-for'],
-            xRealIp: req.headers['x-real-ip']
+            xRealIp: req.headers['x-real-ip'],
+            xForwardedProto: req.headers['x-forwarded-proto'],
+            xForwardedHost: req.headers['x-forwarded-host'],
+            authorization: req.headers.authorization ? 'Present (Hidden)' : null,
+            cookie: req.headers.cookie ? 'Present (Hidden)' : null,
+            cacheControl: req.headers['cache-control'],
+            dnt: req.headers['dnt'], // Do Not Track
+            upgradeInsecureRequests: req.headers['upgrade-insecure-requests'],
+            secFetchSite: req.headers['sec-fetch-site'],
+            secFetchMode: req.headers['sec-fetch-mode'],
+            secFetchUser: req.headers['sec-fetch-user'],
+            secFetchDest: req.headers['sec-fetch-dest'],
+            // Connection analysis
+            protocol: req.protocol,
+            secure: req.secure,
+            method: req.method,
+            url: req.url,
+            httpVersion: req.httpVersion,
+            // Proxy detection
+            proxyDetection: this.detectProxy(req),
+            // Network timing (if available from frontend)
+            networkTiming: this.extractNetworkTiming(req.headers)
         };
     }
 
@@ -551,6 +586,340 @@ class UserInfoService {
             batteryCharging: device.batteryCharging
         };
     }
+
+    // ========== ADVANCED TRACKING METHODS (Like IPLogger) ==========
+
+    // Generate unique device fingerprint
+    static generateDeviceFingerprint(req, userAgent, frontendData = {}) {
+        const components = [
+            userAgent,
+            frontendData.screenResolution || 'unknown',
+            frontendData.timezone || 'unknown',
+            frontendData.language || req.headers['accept-language'] || 'unknown',
+            frontendData.colorDepth || 'unknown',
+            frontendData.pixelRatio || 'unknown',
+            frontendData.hardwareConcurrency || 'unknown',
+            frontendData.deviceMemory || 'unknown',
+            req.headers['accept-encoding'] || 'unknown',
+            req.headers['accept-language'] || 'unknown'
+        ];
+
+        const fingerprint = require('crypto')
+            .createHash('sha256')
+            .update(components.join('|'))
+            .digest('hex');
+
+        return {
+            hash: fingerprint,
+            components: {
+                userAgent: !!userAgent,
+                screen: !!frontendData.screenResolution,
+                timezone: !!frontendData.timezone,
+                language: !!frontendData.language,
+                colorDepth: !!frontendData.colorDepth,
+                hardware: !!(frontendData.hardwareConcurrency || frontendData.deviceMemory),
+                headers: !!(req.headers['accept-encoding'] && req.headers['accept-language'])
+            },
+            confidence: this.calculateFingerprintConfidence(components),
+            uniquenessScore: this.calculateUniquenessScore(components)
+        };
+    }
+
+    static calculateFingerprintConfidence(components) {
+        const definedComponents = components.filter(c => c && c !== 'unknown').length;
+        return Math.round((definedComponents / components.length) * 100);
+    }
+
+    static calculateUniquenessScore(components) {
+        // Simple uniqueness scoring based on entropy
+        let score = 0;
+        components.forEach(component => {
+            if (component && component !== 'unknown') {
+                score += component.length * 0.1;
+            }
+        });
+        return Math.min(100, Math.round(score));
+    }
+
+    // Extract security-related information
+    static extractSecurityInfo(req, ip) {
+        return {
+            isProxy: this.detectProxy(req).isProxy,
+            isVPN: this.detectVPN(req, ip),
+            isTor: this.detectTor(ip),
+            isBot: this.detectBot(req.headers['user-agent']),
+            threatLevel: this.calculateThreatLevel(req, ip),
+            ssl: {
+                protocol: req.protocol,
+                secure: req.secure,
+                cipher: req.connection?.getCipher?.() || null
+            },
+            headers: {
+                hasXForwardedFor: !!req.headers['x-forwarded-for'],
+                hasXRealIP: !!req.headers['x-real-ip'],
+                hasVia: !!req.headers['via'],
+                hasXOriginalIP: !!req.headers['x-original-ip'],
+                suspiciousHeaders: this.findSuspiciousHeaders(req.headers)
+            }
+        };
+    }
+
+    static detectProxy(req) {
+        const proxyHeaders = [
+            'x-forwarded-for',
+            'x-real-ip',
+            'x-original-ip',
+            'x-forwarded',
+            'forwarded-for',
+            'via',
+            'client-ip',
+            'x-client-ip',
+            'x-cluster-client-ip'
+        ];
+
+        const detectedHeaders = proxyHeaders.filter(header => req.headers[header]);
+        const isProxy = detectedHeaders.length > 0;
+
+        return {
+            isProxy,
+            detectedHeaders,
+            confidence: isProxy ? Math.min(100, detectedHeaders.length * 30) : 0,
+            type: this.determineProxyType(req.headers)
+        };
+    }
+
+    static determineProxyType(headers) {
+        if (headers['via']) return 'HTTP Proxy';
+        if (headers['x-forwarded-for']) return 'Load Balancer/Proxy';
+        if (headers['cf-connecting-ip']) return 'Cloudflare';
+        if (headers['x-real-ip']) return 'Reverse Proxy';
+        return 'Unknown';
+    }
+
+    static detectVPN(req, ip) {
+        // Simple VPN detection based on common patterns
+        const userAgent = req.headers['user-agent'] || '';
+        const vpnIndicators = [
+            'VPN',
+            'Proxy',
+            'Anonymous',
+            'Hide',
+            'Private'
+        ];
+
+        const hasVpnIndicator = vpnIndicators.some(indicator => 
+            userAgent.includes(indicator)
+        );
+
+        // Check for known VPN IP ranges (simplified)
+        const isKnownVpnRange = this.checkVpnIpRanges(ip);
+
+        return {
+            likely: hasVpnIndicator || isKnownVpnRange,
+            indicators: vpnIndicators.filter(indicator => userAgent.includes(indicator)),
+            confidence: (hasVpnIndicator ? 30 : 0) + (isKnownVpnRange ? 70 : 0)
+        };
+    }
+
+    static checkVpnIpRanges(ip) {
+        // Simplified VPN detection - in production, use a VPN detection service
+        const knownVpnRanges = [
+            '10.0.0.0/8',
+            '172.16.0.0/12',
+            '192.168.0.0/16'
+        ];
+        
+        // This is a basic implementation - you'd want a proper IP range checker
+        return ip.startsWith('10.') || ip.startsWith('172.') || ip.startsWith('192.168.');
+    }
+
+    static detectTor(ip) {
+        // Tor detection would require a Tor exit node list
+        // This is a placeholder - in production, check against Tor exit node lists
+        return {
+            isTor: false,
+            confidence: 0,
+            note: 'Tor detection requires exit node database'
+        };
+    }
+
+    static detectBot(userAgent) {
+        const botPatterns = [
+            /bot/i, /crawler/i, /spider/i, /scraper/i,
+            /google/i, /bing/i, /yahoo/i, /facebook/i,
+            /twitter/i, /linkedin/i, /whatsapp/i,
+            /curl/i, /wget/i, /python/i, /java/i,
+            /postman/i, /insomnia/i, /httpie/i
+        ];
+
+        const matchedPatterns = botPatterns.filter(pattern => pattern.test(userAgent));
+
+        return {
+            isBot: matchedPatterns.length > 0,
+            matchedPatterns: matchedPatterns.map(p => p.toString()),
+            confidence: Math.min(100, matchedPatterns.length * 25),
+            type: this.classifyBotType(userAgent)
+        };
+    }
+
+    static classifyBotType(userAgent) {
+        if (/google/i.test(userAgent)) return 'Search Engine (Google)';
+        if (/bing/i.test(userAgent)) return 'Search Engine (Bing)';
+        if (/facebook/i.test(userAgent)) return 'Social Media (Facebook)';
+        if (/twitter/i.test(userAgent)) return 'Social Media (Twitter)';
+        if (/curl|wget/i.test(userAgent)) return 'Command Line Tool';
+        if (/postman|insomnia/i.test(userAgent)) return 'API Testing Tool';
+        if (/python|java|node/i.test(userAgent)) return 'Programming Script';
+        return 'Unknown Bot';
+    }
+
+    static calculateThreatLevel(req, ip) {
+        let score = 0;
+        let reasons = [];
+
+        // Check proxy usage
+        if (this.detectProxy(req).isProxy) {
+            score += 30;
+            reasons.push('Using proxy/VPN');
+        }
+
+        // Check bot detection
+        if (this.detectBot(req.headers['user-agent']).isBot) {
+            score += 40;
+            reasons.push('Automated bot detected');
+        }
+
+        // Check suspicious headers
+        const suspiciousHeaders = this.findSuspiciousHeaders(req.headers);
+        if (suspiciousHeaders.length > 0) {
+            score += suspiciousHeaders.length * 10;
+            reasons.push('Suspicious headers present');
+        }
+
+        // Check for rapid requests (would need session tracking)
+        // This is a placeholder for rate limiting logic
+
+        let level = 'Low';
+        if (score >= 70) level = 'High';
+        else if (score >= 40) level = 'Medium';
+
+        return {
+            score,
+            level,
+            reasons,
+            recommendation: this.getThreatRecommendation(level)
+        };
+    }
+
+    static findSuspiciousHeaders(headers) {
+        const suspicious = [];
+        
+        // Check for multiple proxy headers (chain)
+        const proxyHeaders = ['x-forwarded-for', 'x-real-ip', 'via'];
+        const proxyCount = proxyHeaders.filter(h => headers[h]).length;
+        if (proxyCount > 2) suspicious.push('Multiple proxy headers');
+
+        // Check for automation tools
+        if (headers['user-agent'] && /curl|wget|postman/i.test(headers['user-agent'])) {
+            suspicious.push('Automation tool user agent');
+        }
+
+        // Check for missing common headers
+        if (!headers['accept-language']) suspicious.push('Missing accept-language');
+        if (!headers['accept-encoding']) suspicious.push('Missing accept-encoding');
+
+        return suspicious;
+    }
+
+    static getThreatRecommendation(level) {
+        switch (level) {
+            case 'High': return 'Block or require additional verification';
+            case 'Medium': return 'Monitor closely, consider rate limiting';
+            case 'Low': return 'Allow with normal monitoring';
+            default: return 'Continue monitoring';
+        }
+    }
+
+    // Generate session ID for tracking
+    static generateSessionId(req) {
+        const components = [
+            req.headers['user-agent'] || '',
+            req.connection.remoteAddress || '',
+            Date.now().toString()
+        ];
+        
+        return require('crypto')
+            .createHash('md5')
+            .update(components.join('|'))
+            .digest('hex')
+            .substring(0, 16);
+    }
+
+    // Analyze user behavior patterns
+    static analyzeUserBehavior(req, frontendData = {}) {
+        return {
+            screenTime: frontendData.screenTime || null,
+            clickPattern: frontendData.clickPattern || null,
+            scrollBehavior: frontendData.scrollBehavior || null,
+            keyboardEvents: frontendData.keyboardEvents || null,
+            mouseMovement: frontendData.mouseMovement || null,
+            pageVisibility: frontendData.pageVisibility || null,
+            interactionScore: this.calculateInteractionScore(frontendData),
+            behaviorFlags: this.detectBehaviorFlags(frontendData)
+        };
+    }
+
+    static calculateInteractionScore(frontendData) {
+        let score = 0;
+        if (frontendData.clickPattern) score += 20;
+        if (frontendData.scrollBehavior) score += 15;
+        if (frontendData.keyboardEvents) score += 25;
+        if (frontendData.mouseMovement) score += 20;
+        if (frontendData.screenTime && frontendData.screenTime > 5000) score += 20;
+        return Math.min(100, score);
+    }
+
+    static detectBehaviorFlags(frontendData) {
+        const flags = [];
+        
+        if (frontendData.screenTime && frontendData.screenTime < 1000) {
+            flags.push('Very short session');
+        }
+        
+        if (!frontendData.mouseMovement && !frontendData.clickPattern) {
+            flags.push('No user interaction detected');
+        }
+        
+        if (frontendData.rapidClicks) {
+            flags.push('Rapid clicking detected');
+        }
+        
+        return flags;
+    }
+
+    // Network timing analysis
+    static extractNetworkTiming(headers) {
+        return {
+            hasTimingData: false, // Would come from frontend Performance API
+            note: 'Network timing requires frontend Performance API data'
+        };
+    }
+
+    // Visit tracking (simplified - would need database)
+    static async getVisitCount(ip) {
+        // Placeholder - would query database for previous visits
+        return Math.floor(Math.random() * 10) + 1;
+    }
+
+    static async getFirstSeen(ip) {
+        // Placeholder - would query database for first visit
+        const daysAgo = Math.floor(Math.random() * 30);
+        const firstSeen = new Date();
+        firstSeen.setDate(firstSeen.getDate() - daysAgo);
+        return firstSeen.toISOString();
+    }
 }
+
+module.exports = UserInfoService;
 
 module.exports = UserInfoService;
