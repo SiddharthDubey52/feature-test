@@ -111,6 +111,49 @@
     </div>
 
     <script>
+        // Helper function to get current position with better error handling
+        function getCurrentPosition(options = {}) {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocation is not supported by this browser'));
+                    return;
+                }
+
+                const defaultOptions = {
+                    enableHighAccuracy: true,
+                    timeout: 10000, // 10 seconds
+                    maximumAge: 300000 // 5 minutes
+                };
+
+                const finalOptions = { ...defaultOptions, ...options };
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve(position);
+                    },
+                    (error) => {
+                        let errorMessage = 'Location access denied';
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = 'Location access denied by user';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = 'Location information unavailable';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = 'Location request timed out';
+                                break;
+                            default:
+                                errorMessage = 'An unknown error occurred while retrieving location';
+                                break;
+                        }
+                        reject(new Error(errorMessage));
+                    },
+                    finalOptions
+                );
+            });
+        }
+
         async function getUserInfo() {
             const resultDiv = document.getElementById('result');
             const ipSection = document.getElementById('ip-section');
@@ -137,6 +180,33 @@
                     deviceMemory: navigator.deviceMemory,
                     maxTouchPoints: navigator.maxTouchPoints
                 };
+
+                // Try to get precise location using browser geolocation API
+                try {
+                    resultDiv.innerHTML = '<div class="loading">📍 Requesting precise location access for enhanced accuracy...</div>';
+                    
+                    const position = await getCurrentPosition();
+                    deviceInfo.browserLocation = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        altitude: position.coords.altitude,
+                        altitudeAccuracy: position.coords.altitudeAccuracy,
+                        heading: position.coords.heading,
+                        speed: position.coords.speed,
+                        timestamp: position.timestamp,
+                        source: 'browser-geolocation'
+                    };
+                    
+                    console.log('✅ Precise location obtained:', deviceInfo.browserLocation);
+                } catch (geoError) {
+                    console.log('⚠️ Browser geolocation failed:', geoError.message);
+                    // Continue without precise location - will use IP-based location
+                    deviceInfo.browserLocation = {
+                        error: geoError.message,
+                        source: 'browser-geolocation-failed'
+                    };
+                }
 
                 // Make API call
                 const response = await fetch('http://localhost:3001/api/user-info', {
@@ -169,6 +239,23 @@
                             <span class="summary-label">City:</span>
                             <span class="summary-value">${summary.city || 'Unknown'}</span>
                         </div>
+                        ${data.data.device.browserLocation && data.data.device.browserLocation.latitude ? `
+                        <div class="summary-item" style="background: #e8f5e8; margin: 5px 0; padding: 8px; border-radius: 4px;">
+                            <span class="summary-label">🎯 Precise Location:</span>
+                            <span class="summary-value" style="color: #28a745; font-weight: bold;">
+                                ${data.data.device.browserLocation.latitude.toFixed(6)}, ${data.data.device.browserLocation.longitude.toFixed(6)}
+                            </span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">📍 GPS Accuracy:</span>
+                            <span class="summary-value" style="color: #28a745;">${Math.round(data.data.device.browserLocation.accuracy)} meters</span>
+                        </div>
+                        ` : data.data.device.browserLocation && data.data.device.browserLocation.error ? `
+                        <div class="summary-item" style="background: #fff3cd; margin: 5px 0; padding: 8px; border-radius: 4px;">
+                            <span class="summary-label">📍 GPS Location:</span>
+                            <span class="summary-value" style="color: #856404;">❌ ${data.data.device.browserLocation.error}</span>
+                        </div>
+                        ` : ''}
                         <div class="summary-item">
                             <span class="summary-label">Browser:</span>
                             <span class="summary-value">${summary.browser || 'Unknown'}</span>

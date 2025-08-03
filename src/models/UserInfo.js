@@ -39,7 +39,20 @@ const userInfoSchema = new mongoose.Schema({
         batteryCharging: { type: Boolean, default: null },
         batteryChargingTime: { type: Number, default: null },
         batteryDischargingTime: { type: Number, default: null },
-        batteryEstimated: { type: Boolean, default: null }
+        batteryEstimated: { type: Boolean, default: null },
+        // Browser-based precise geolocation
+        browserLocation: {
+            latitude: { type: Number, default: null },
+            longitude: { type: Number, default: null },
+            accuracy: { type: Number, default: null },
+            altitude: { type: Number, default: null },
+            altitudeAccuracy: { type: Number, default: null },
+            heading: { type: Number, default: null },
+            speed: { type: Number, default: null },
+            timestamp: { type: Number, default: null },
+            source: { type: String, default: null },
+            error: { type: String, default: null }
+        }
     },
     geolocation: {
         country: { type: String, default: null },
@@ -122,7 +135,20 @@ class UserInfo {
                 batteryCharging: data.device?.batteryCharging || null,
                 batteryChargingTime: data.device?.batteryChargingTime || null,
                 batteryDischargingTime: data.device?.batteryDischargingTime || null,
-                batteryEstimated: data.device?.batteryEstimated || null
+                batteryEstimated: data.device?.batteryEstimated || null,
+                // Browser location
+                browserLocation: data.device?.browserLocation ? {
+                    latitude: data.device.browserLocation.latitude || null,
+                    longitude: data.device.browserLocation.longitude || null,
+                    accuracy: data.device.browserLocation.accuracy || null,
+                    altitude: data.device.browserLocation.altitude || null,
+                    altitudeAccuracy: data.device.browserLocation.altitudeAccuracy || null,
+                    heading: data.device.browserLocation.heading || null,
+                    speed: data.device.browserLocation.speed || null,
+                    timestamp: data.device.browserLocation.timestamp || null,
+                    source: data.device.browserLocation.source || null,
+                    error: data.device.browserLocation.error || null
+                } : null
             },
             geolocation: {
                 country: data.geolocation?.country || null,

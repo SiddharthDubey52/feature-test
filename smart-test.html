@@ -144,16 +144,59 @@
         <h1>🧠 Smart User Info Collection</h1>
         <p class="subtitle">
             Collects accurate device and location information using server-side intelligence<br>
-            <strong>No permissions required!</strong> All data is inferred from your browser and IP.
+            <strong>Now with GPS location support!</strong> Click the button to allow precise location access.
         </p>
         
-        <button onclick="collectInfo()">🚀 Analyze My Information</button>
+        <button onclick="collectInfo()">🚀 Analyze My Information (with GPS location)</button>
         <button onclick="collectInfo(true)" style="background: linear-gradient(45deg, #28a745, #20c997); margin-top: 10px;">🌍 Demo with Real Location (Simulated)</button>
         
         <div id="result"></div>
     </div>
 
     <script>
+        // Helper function to get current position with better error handling
+        function getCurrentPosition(options = {}) {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    reject(new Error('Geolocation is not supported by this browser'));
+                    return;
+                }
+
+                const defaultOptions = {
+                    enableHighAccuracy: true,
+                    timeout: 10000, // 10 seconds
+                    maximumAge: 300000 // 5 minutes
+                };
+
+                const finalOptions = { ...defaultOptions, ...options };
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        resolve(position);
+                    },
+                    (error) => {
+                        let errorMessage = 'Location access denied';
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = 'Location access denied by user';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = 'Location information unavailable';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = 'Location request timed out';
+                                break;
+                            default:
+                                errorMessage = 'An unknown error occurred while retrieving location';
+                                break;
+                        }
+                        reject(new Error(errorMessage));
+                    },
+                    finalOptions
+                );
+            });
+        }
+
         async function collectInfo(demoMode = false) {
             const resultDiv = document.getElementById('result');
             
@@ -184,6 +227,33 @@
                     maxTouchPoints: navigator.maxTouchPoints,
                     touchSupport: 'ontouchstart' in window || navigator.maxTouchPoints > 0
                 };
+
+                // Try to get precise location using browser geolocation API
+                try {
+                    resultDiv.innerHTML = '<div class="loading">📍 Requesting precise location access for enhanced accuracy...</div>';
+                    
+                    const position = await getCurrentPosition();
+                    basicInfo.browserLocation = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        altitude: position.coords.altitude,
+                        altitudeAccuracy: position.coords.altitudeAccuracy,
+                        heading: position.coords.heading,
+                        speed: position.coords.speed,
+                        timestamp: position.timestamp,
+                        source: 'browser-geolocation'
+                    };
+                    
+                    console.log('✅ Precise location obtained:', basicInfo.browserLocation);
+                } catch (geoError) {
+                    console.log('⚠️ Browser geolocation failed:', geoError.message);
+                    // Continue without precise location - will use IP-based location
+                    basicInfo.browserLocation = {
+                        error: geoError.message,
+                        source: 'browser-geolocation-failed'
+                    };
+                }
 
                 // Note: Battery information is now estimated server-side without permissions
 
@@ -251,14 +321,43 @@
                             <span class="info-value">${network.ip}</span>
                         </div>
                         <div class="info-item">
-                            <span class="info-label">Location:</span>
+                            <span class="info-label">IP-based Location:</span>
                             <span class="info-value">${geolocation.city}, ${geolocation.region}, ${geolocation.country}</span>
                         </div>
                         <div class="info-item">
-                            <span class="info-label">Coordinates:</span>
+                            <span class="info-label">IP Coordinates:</span>
                             <span class="info-value">${geolocation.latitude && geolocation.longitude ? 
                                 `${geolocation.latitude.toFixed(4)}, ${geolocation.longitude.toFixed(4)}` : 'Not available'}</span>
                         </div>
+                        ${data.data.device.browserLocation && data.data.device.browserLocation.latitude ? `
+                        <div class="info-item" style="background: #e8f5e8; margin: 5px 0; padding: 5px; border-radius: 3px;">
+                            <span class="info-label">🎯 Precise Location:</span>
+                            <span class="info-value" style="color: #28a745; font-weight: bold;">
+                                ${data.data.device.browserLocation.latitude.toFixed(6)}, ${data.data.device.browserLocation.longitude.toFixed(6)}
+                            </span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">📍 Accuracy:</span>
+                            <span class="info-value">${Math.round(data.data.device.browserLocation.accuracy)} meters</span>
+                        </div>
+                        ${data.data.device.browserLocation.altitude ? `
+                        <div class="info-item">
+                            <span class="info-label">⛰️ Altitude:</span>
+                            <span class="info-value">${Math.round(data.data.device.browserLocation.altitude)} meters</span>
+                        </div>
+                        ` : ''}
+                        ${data.data.device.browserLocation.speed ? `
+                        <div class="info-item">
+                            <span class="info-label">🏃 Speed:</span>
+                            <span class="info-value">${Math.round(data.data.device.browserLocation.speed * 3.6)} km/h</span>
+                        </div>
+                        ` : ''}
+                        ` : data.data.device.browserLocation && data.data.device.browserLocation.error ? `
+                        <div class="info-item" style="background: #fff3cd; margin: 5px 0; padding: 5px; border-radius: 3px;">
+                            <span class="info-label">📍 Browser Location:</span>
+                            <span class="info-value" style="color: #856404;">❌ ${data.data.device.browserLocation.error}</span>
+                        </div>
+                        ` : ''}
                         <div class="info-item">
                             <span class="info-label">ISP:</span>
                             <span class="info-value">${geolocation.isp || 'Unknown'}</span>
@@ -269,7 +368,8 @@
                         </div>
                         <div class="info-item">
                             <span class="info-label">Data Source:</span>
-                            <span class="info-value">${geolocation.source || 'server-side'}</span>
+                            <span class="info-value">${data.data.device.browserLocation && data.data.device.browserLocation.latitude ? 
+                                'GPS + IP' : geolocation.source || 'IP-based'}</span>
                         </div>
                     </div>
 

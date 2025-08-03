@@ -123,6 +123,9 @@ class UserInfoService {
                 maxTouchPoints: frontendData.maxTouchPoints || (deviceType === 'mobile' ? 10 : 0),
                 touchSupport: frontendData.touchSupport !== undefined ? frontendData.touchSupport : (deviceType !== 'desktop'),
                 
+                // Browser-based geolocation data (high precision)
+                browserLocation: frontendData.browserLocation || null,
+                
                 // Battery information - Smart estimation without permissions
                 batteryLevel: this.estimateBatteryLevel(userAgent, deviceType, vendor, model),
                 batteryCharging: this.estimateChargingStatus(userAgent, deviceType),
