@@ -918,8 +918,587 @@ class UserInfoService {
         firstSeen.setDate(firstSeen.getDate() - daysAgo);
         return firstSeen.toISOString();
     }
-}
 
-module.exports = UserInfoService;
+    // Location analysis methods for live tracking
+    static assessLocationQuality(browserLocation) {
+        if (!browserLocation || !browserLocation.accuracy) {
+            return { quality: 'unknown', score: 0 };
+        }
+
+        const accuracy = browserLocation.accuracy;
+        let quality, score;
+
+        if (accuracy <= 10) {
+            quality = 'excellent';
+            score = 100;
+        } else if (accuracy <= 50) {
+            quality = 'good';
+            score = 80;
+        } else if (accuracy <= 100) {
+            quality = 'fair';
+            score = 60;
+        } else if (accuracy <= 1000) {
+            quality = 'poor';
+            score = 30;
+        } else {
+            quality = 'very-poor';
+            score = 10;
+        }
+
+        return {
+            quality,
+            score,
+            accuracy,
+            hasAltitude: !!browserLocation.altitude,
+            hasSpeed: !!browserLocation.speed,
+            hasHeading: !!browserLocation.heading
+        };
+    }
+
+    static compareLocations(location1, location2) {
+        if (!location1 || !location2 || !location1.latitude || !location2.latitude) {
+            return null;
+        }
+
+        // Calculate distance using Haversine formula
+        const distance = this.calculateDistance(
+            location1.latitude, location1.longitude,
+            location2.latitude, location2.longitude
+        );
+
+        return {
+            distance: Math.round(distance),
+            distanceKm: Math.round(distance / 1000 * 100) / 100,
+            isClose: distance < 1000, // Within 1km
+            isVerySimilar: distance < 100, // Within 100m
+            coordinates: {
+                gps: location1,
+                ip: location2
+            }
+        };
+    }
+
+    static analyzeMovement(previousLocation, currentLocation) {
+        if (!previousLocation || !currentLocation || 
+            !previousLocation.coordinates || !currentLocation.coordinates) {
+            return null;
+        }
+
+        const prev = previousLocation.coordinates;
+        const curr = currentLocation.coordinates;
+        
+        if (!prev.latitude || !curr.latitude) {
+            return null;
+        }
+
+        const distance = this.calculateDistance(
+            prev.latitude, prev.longitude,
+            curr.latitude, curr.longitude
+        );
+
+        const timeDiff = currentLocation.timestamp - previousLocation.timestamp;
+        const speed = timeDiff > 0 ? (distance / timeDiff) * 1000 : 0; // m/s
+
+        return {
+            distance: Math.round(distance),
+            timeDifference: timeDiff,
+            speed: Math.round(speed * 3.6 * 100) / 100, // km/h
+            direction: this.calculateBearing(prev.latitude, prev.longitude, curr.latitude, curr.longitude),
+            movementType: this.classifyMovement(distance, speed * 3.6),
+            isSignificantMovement: distance > 10 // 10 meter threshold
+        };
+    }
+
+    static calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371000; // Earth's radius in meters
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+        return R * c;
+    }
+
+    static calculateBearing(lat1, lon1, lat2, lon2) {
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+        const y = Math.sin(Δλ) * Math.cos(φ2);
+        const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+        const θ = Math.atan2(y, x);
+        return Math.round(((θ * 180 / Math.PI) + 360) % 360);
+    }
+
+    static classifyMovement(distance, speedKmh) {
+        if (distance < 5) return 'stationary';
+        if (speedKmh < 5) return 'walking';
+        if (speedKmh < 25) return 'cycling';
+        if (speedKmh < 80) return 'driving';
+        return 'high-speed';
+    }
+
+    // Advanced stealth location estimation (no GPS permission)
+    static async performStealthLocationAnalysis(req, frontendData = {}) {
+        const ip = this.extractRealIP(req);
+        const userAgent = req.headers['user-agent'] || '';
+        
+        console.log('🔍 Performing stealth location analysis...');
+        
+        // Collect multiple location estimation sources
+        const [
+            ipGeolocation,
+            networkAnalysis,
+            deviceAnalysis,
+            timezoneAnalysis,
+            connectionAnalysis
+        ] = await Promise.all([
+            this.extractPreciseGeolocation(ip),
+            this.analyzeNetworkInfrastructure(req, ip),
+            this.analyzeDeviceCharacteristics(userAgent, frontendData),
+            this.analyzeTimezonePatterns(frontendData),
+            this.analyzeConnectionPatterns(frontendData)
+        ]);
+
+        // Advanced location estimation algorithms
+        const locationEstimations = [
+            this.estimateFromIPGeolocation(ipGeolocation),
+            this.estimateFromNetworkInfrastructure(networkAnalysis),
+            this.estimateFromDeviceCharacteristics(deviceAnalysis),
+            this.estimateFromTimezonePatterns(timezoneAnalysis),
+            this.estimateFromConnectionPatterns(connectionAnalysis)
+        ];
+
+        // Calculate weighted location estimate
+        const stealthLocation = this.calculateStealthLocation(locationEstimations);
+        
+        return {
+            stealthLocation,
+            locationEstimations,
+            confidence: stealthLocation.confidence,
+            accuracy: this.estimateLocationAccuracy(stealthLocation.confidence),
+            algorithms: locationEstimations.length,
+            source: 'stealth-analysis'
+        };
+    }
+
+    static async analyzeNetworkInfrastructure(req, ip) {
+        try {
+            // Get ISP and organization info
+            const networkInfo = await this.extractNetworkInfo(req, ip);
+            
+            // Analyze ISP infrastructure patterns
+            const ispPatterns = this.analyzeISPInfrastructure(networkInfo.isp, networkInfo.organization);
+            
+            // Analyze connection routing (if available)
+            const routingAnalysis = this.analyzeNetworkRouting(req.headers);
+            
+            return {
+                networkInfo,
+                ispPatterns,
+                routingAnalysis,
+                confidence: ispPatterns.confidence + routingAnalysis.confidence
+            };
+        } catch (error) {
+            console.warn('Network infrastructure analysis failed:', error.message);
+            return { confidence: 0 };
+        }
+    }
+
+    static analyzeDeviceCharacteristics(userAgent, frontendData) {
+        const deviceInfo = this.extractAdvancedDeviceInfo(userAgent, frontendData);
+        
+        // Analyze screen resolution patterns by region
+        const screenPatterns = this.analyzeScreenResolutionPatterns(frontendData.screenResolution);
+        
+        // Analyze hardware patterns by region
+        const hardwarePatterns = this.analyzeHardwarePatterns(frontendData);
+        
+        // Analyze browser/OS patterns by region
+        const browserPatterns = this.analyzeBrowserPatterns(userAgent);
+        
+        return {
+            screenPatterns,
+            hardwarePatterns,
+            browserPatterns,
+            confidence: screenPatterns.confidence + hardwarePatterns.confidence + browserPatterns.confidence
+        };
+    }
+
+    static analyzeTimezonePatterns(frontendData) {
+        if (!frontendData.timezone) return { confidence: 0 };
+        
+        // Advanced timezone to location mapping
+        const timezoneLocation = this.mapTimezoneToCoordinates(frontendData.timezone);
+        
+        // Cross-reference with language patterns
+        const languageCorrelation = this.correlateTimezoneLanguage(
+            frontendData.timezone, 
+            frontendData.language, 
+            frontendData.languages
+        );
+        
+        return {
+            timezoneLocation,
+            languageCorrelation,
+            confidence: timezoneLocation.confidence + languageCorrelation.confidence
+        };
+    }
+
+    static analyzeConnectionPatterns(frontendData) {
+        if (!frontendData.connection) return { confidence: 0 };
+        
+        const connection = frontendData.connection;
+        
+        // Analyze connection speed patterns by region
+        const speedPatterns = this.analyzeConnectionSpeedPatterns(connection);
+        
+        // Analyze RTT patterns for distance estimation
+        const rttPatterns = this.analyzeRTTPatterns(connection.rtt);
+        
+        // Analyze connection type distribution
+        const typePatterns = this.analyzeConnectionTypePatterns(connection.effectiveType, connection.type);
+        
+        return {
+            speedPatterns,
+            rttPatterns,
+            typePatterns,
+            confidence: speedPatterns.confidence + rttPatterns.confidence + typePatterns.confidence
+        };
+    }
+
+    // Advanced estimation algorithms
+    static estimateFromIPGeolocation(ipGeolocation) {
+        let confidence = 60; // Base IP geolocation confidence
+        let location = {};
+        
+        if (ipGeolocation && ipGeolocation.latitude && ipGeolocation.longitude) {
+            location = {
+                latitude: ipGeolocation.latitude,
+                longitude: ipGeolocation.longitude,
+                city: ipGeolocation.city,
+                region: ipGeolocation.region,
+                country: ipGeolocation.country
+            };
+            confidence += 20; // Higher confidence with coordinates
+        } else if (ipGeolocation && ipGeolocation.city) {
+            location = {
+                city: ipGeolocation.city,
+                region: ipGeolocation.region,
+                country: ipGeolocation.country
+            };
+            confidence += 10; // Medium confidence with city
+        }
+        
+        return {
+            algorithm: 'IP Geolocation',
+            location,
+            confidence: Math.min(confidence, 85),
+            accuracy: location.latitude ? '1-50km' : 'City level'
+        };
+    }
+
+    static estimateFromNetworkInfrastructure(networkAnalysis) {
+        let confidence = 30;
+        let location = {};
+        
+        if (networkAnalysis.ispPatterns && networkAnalysis.ispPatterns.region) {
+            location.estimatedRegion = networkAnalysis.ispPatterns.region;
+            confidence += networkAnalysis.ispPatterns.confidence || 15;
+        }
+        
+        return {
+            algorithm: 'Network Infrastructure',
+            location,
+            confidence: Math.min(confidence, 50),
+            accuracy: 'Regional'
+        };
+    }
+
+    static estimateFromDeviceCharacteristics(deviceAnalysis) {
+        let confidence = 15;
+        let location = {};
+        
+        // Very rough regional indicators from device patterns
+        if (deviceAnalysis.hardwarePatterns && deviceAnalysis.hardwarePatterns.region) {
+            location.deviceRegion = deviceAnalysis.hardwarePatterns.region;
+            confidence += 10;
+        }
+        
+        return {
+            algorithm: 'Device Characteristics',
+            location,
+            confidence: Math.min(confidence, 30),
+            accuracy: 'Very broad regional'
+        };
+    }
+
+    static estimateFromTimezonePatterns(timezoneAnalysis) {
+        let confidence = 40;
+        let location = {};
+        
+        if (timezoneAnalysis.timezoneLocation) {
+            location = timezoneAnalysis.timezoneLocation.location || {};
+            confidence += timezoneAnalysis.timezoneLocation.confidence || 20;
+        }
+        
+        return {
+            algorithm: 'Timezone Analysis',
+            location,
+            confidence: Math.min(confidence, 65),
+            accuracy: 'Regional to city level'
+        };
+    }
+
+    static estimateFromConnectionPatterns(connectionAnalysis) {
+        let confidence = 20;
+        let location = {};
+        
+        if (connectionAnalysis.speedPatterns && connectionAnalysis.speedPatterns.region) {
+            location.connectionRegion = connectionAnalysis.speedPatterns.region;
+            confidence += 10;
+        }
+        
+        return {
+            algorithm: 'Connection Analysis',
+            location,
+            confidence: Math.min(confidence, 35),
+            accuracy: 'Broad regional'
+        };
+    }
+
+    // Helper methods for advanced analysis
+    static analyzeISPInfrastructure(isp, organization) {
+        const ispRegionMap = {
+            'Comcast': { region: 'United States', confidence: 20 },
+            'Verizon': { region: 'United States', confidence: 20 },
+            'AT&T': { region: 'United States', confidence: 20 },
+            'BT Group': { region: 'United Kingdom', confidence: 20 },
+            'Deutsche Telekom': { region: 'Germany', confidence: 20 },
+            'Orange': { region: 'France', confidence: 15 },
+            'China Telecom': { region: 'China', confidence: 20 },
+            'NTT': { region: 'Japan', confidence: 20 },
+            'Telstra': { region: 'Australia', confidence: 20 }
+        };
+        
+        const ispName = (isp || '').toLowerCase();
+        for (const [pattern, data] of Object.entries(ispRegionMap)) {
+            if (ispName.includes(pattern.toLowerCase())) {
+                return data;
+            }
+        }
+        
+        return { confidence: 5 };
+    }
+
+    static analyzeNetworkRouting(headers) {
+        // Analyze routing headers for additional location clues
+        let confidence = 5;
+        
+        // Check for CDN headers that might indicate geographic routing
+        const cdnHeaders = ['cf-ray', 'x-served-by', 'x-cache'];
+        for (const header of cdnHeaders) {
+            if (headers[header]) {
+                confidence += 3;
+            }
+        }
+        
+        return { confidence: Math.min(confidence, 15) };
+    }
+
+    static analyzeScreenResolutionPatterns(screenResolution) {
+        // Very rough regional patterns based on common screen sizes
+        if (!screenResolution) return { confidence: 0 };
+        
+        // This is very approximate and not reliable
+        return { confidence: 2 };
+    }
+
+    static analyzeHardwarePatterns(frontendData) {
+        let confidence = 0;
+        
+        // Analyze hardware concurrency patterns
+        if (frontendData.hardwareConcurrency) {
+            // Higher core counts might indicate developed regions
+            if (frontendData.hardwareConcurrency >= 8) confidence += 3;
+            else if (frontendData.hardwareConcurrency >= 4) confidence += 2;
+        }
+        
+        // Analyze device memory patterns
+        if (frontendData.deviceMemory) {
+            if (frontendData.deviceMemory >= 8) confidence += 3;
+            else if (frontendData.deviceMemory >= 4) confidence += 2;
+        }
+        
+        return { confidence: Math.min(confidence, 8) };
+    }
+
+    static analyzeBrowserPatterns(userAgent) {
+        // Browser distribution patterns by region (very rough)
+        return { confidence: 3 };
+    }
+
+    static mapTimezoneToCoordinates(timezone) {
+        const timezoneCoordinates = {
+            'America/New_York': { latitude: 40.7128, longitude: -74.0060, confidence: 25 },
+            'America/Los_Angeles': { latitude: 34.0522, longitude: -118.2437, confidence: 25 },
+            'America/Chicago': { latitude: 41.8781, longitude: -87.6298, confidence: 20 },
+            'Europe/London': { latitude: 51.5074, longitude: -0.1278, confidence: 25 },
+            'Europe/Paris': { latitude: 48.8566, longitude: 2.3522, confidence: 25 },
+            'Europe/Berlin': { latitude: 52.5200, longitude: 13.4050, confidence: 25 },
+            'Asia/Tokyo': { latitude: 35.6762, longitude: 139.6503, confidence: 25 },
+            'Asia/Shanghai': { latitude: 31.2304, longitude: 121.4737, confidence: 20 },
+            'Asia/Kolkata': { latitude: 22.5726, longitude: 88.3639, confidence: 20 }
+        };
+        
+        // Direct match
+        if (timezoneCoordinates[timezone]) {
+            return {
+                location: timezoneCoordinates[timezone],
+                confidence: timezoneCoordinates[timezone].confidence
+            };
+        }
+        
+        // Partial match by region
+        for (const [tz, coords] of Object.entries(timezoneCoordinates)) {
+            if (timezone.includes(tz.split('/')[1])) {
+                return {
+                    location: { ...coords, confidence: coords.confidence - 5 },
+                    confidence: coords.confidence - 5
+                };
+            }
+        }
+        
+        return { confidence: 5 };
+    }
+
+    static correlateTimezoneLanguage(timezone, language, languages) {
+        let confidence = 0;
+        
+        // Cross-reference timezone and language for validation
+        const correlations = {
+            'America/': ['en-US', 'en', 'es', 'fr-CA'],
+            'Europe/': ['en-GB', 'de', 'fr', 'it', 'es', 'nl', 'sv', 'no', 'da'],
+            'Asia/': ['ja', 'zh', 'ko', 'hi', 'th', 'vi']
+        };
+        
+        for (const [tzRegion, langs] of Object.entries(correlations)) {
+            if (timezone.includes(tzRegion)) {
+                if (languages && languages.some(lang => langs.includes(lang.split('-')[0]))) {
+                    confidence += 10;
+                }
+                break;
+            }
+        }
+        
+        return { confidence };
+    }
+
+    static analyzeConnectionSpeedPatterns(connection) {
+        let confidence = 0;
+        let region = null;
+        
+        if (connection.downlink) {
+            // Very rough infrastructure quality indicators
+            if (connection.downlink > 100) {
+                region = 'High-speed infrastructure region';
+                confidence += 5;
+            } else if (connection.downlink > 25) {
+                region = 'Good infrastructure region';
+                confidence += 3;
+            }
+        }
+        
+        return { region, confidence };
+    }
+
+    static analyzeRTTPatterns(rtt) {
+        let confidence = 0;
+        
+        if (rtt !== undefined) {
+            if (rtt < 10) confidence += 8; // Very close to servers
+            else if (rtt < 30) confidence += 5; // Reasonably close
+            else if (rtt < 100) confidence += 3; // Regional
+            else confidence += 1; // Distant/international
+        }
+        
+        return { confidence };
+    }
+
+    static analyzeConnectionTypePatterns(effectiveType, type) {
+        let confidence = 0;
+        
+        const typeConfidence = {
+            '4g': 5,
+            '3g': 3,
+            '2g': 2,
+            'slow-2g': 1
+        };
+        
+        confidence += typeConfidence[effectiveType] || 2;
+        
+        return { confidence: Math.min(confidence, 8) };
+    }
+
+    static calculateStealthLocation(locationEstimations) {
+        let totalWeight = 0;
+        let weightedLat = 0;
+        let weightedLon = 0;
+        let totalConfidence = 0;
+        let bestEstimation = null;
+        
+        for (const estimation of locationEstimations) {
+            const weight = estimation.confidence / 100;
+            totalWeight += weight;
+            totalConfidence += estimation.confidence;
+            
+            if (estimation.location && estimation.location.latitude && estimation.location.longitude) {
+                weightedLat += estimation.location.latitude * weight;
+                weightedLon += estimation.location.longitude * weight;
+                
+                if (!bestEstimation || estimation.confidence > bestEstimation.confidence) {
+                    bestEstimation = estimation;
+                }
+            }
+        }
+        
+        const averageConfidence = totalConfidence / locationEstimations.length;
+        
+        if (totalWeight > 0 && weightedLat && weightedLon) {
+            return {
+                latitude: weightedLat / totalWeight,
+                longitude: weightedLon / totalWeight,
+                confidence: Math.min(averageConfidence, 90), // Cap at 90% for stealth mode
+                source: 'Multi-algorithm stealth estimation'
+            };
+        } else if (bestEstimation && bestEstimation.location) {
+            return {
+                ...bestEstimation.location,
+                confidence: Math.min(averageConfidence, 75),
+                source: 'Best available estimation'
+            };
+        }
+        
+        return {
+            confidence: Math.min(averageConfidence, 50),
+            source: 'Insufficient coordinate data',
+            region: 'General area only'
+        };
+    }
+
+    static estimateLocationAccuracy(confidence) {
+        if (confidence > 80) return '100m - 2km';
+        if (confidence > 60) return '1km - 10km';
+        if (confidence > 40) return '5km - 50km';
+        if (confidence > 20) return '20km - 200km';
+        return 'Regional level only';
+    }
+}
 
 module.exports = UserInfoService;

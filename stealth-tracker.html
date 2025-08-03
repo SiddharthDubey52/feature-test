@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎯 Stealth Location Tracker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .stealth-panel {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            color: #333;
+            border-left: 5px solid #e74c3c;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        .status-active { background-color: #e74c3c; }
+        .status-inactive { background-color: #95a5a6; }
+        .status-calculating { background-color: #f39c12; }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .location-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .location-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #e74c3c;
+        }
+        .location-card.estimated {
+            border-left-color: #f39c12;
+        }
+        .location-card.calculated {
+            border-left-color: #27ae60;
+        }
+        .location-card h3 {
+            margin-top: 0;
+            color: #e74c3c;
+        }
+        .estimated h3 {
+            color: #f39c12;
+        }
+        .calculated h3 {
+            color: #27ae60;
+        }
+        .data-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .data-label {
+            font-weight: bold;
+            color: #495057;
+        }
+        .data-value {
+            font-family: 'Courier New', monospace;
+            color: #e74c3c;
+        }
+        .coordinates {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-align: center;
+            border: 2px solid #f39c12;
+        }
+        .coordinates.high-confidence {
+            background: #d4edda;
+            border-color: #27ae60;
+        }
+        .coordinates-value {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #f39c12;
+            font-family: 'Courier New', monospace;
+        }
+        .high-confidence .coordinates-value {
+            color: #27ae60;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #c0392b;
+        }
+        .btn-success {
+            background: #27ae60;
+        }
+        .btn-success:hover {
+            background: #229954;
+        }
+        .confidence-meter {
+            background: #e9ecef;
+            border-radius: 10px;
+            height: 25px;
+            overflow: hidden;
+            margin: 10px 0;
+            position: relative;
+        }
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #dc3545, #ffc107, #28a745);
+            transition: width 0.3s ease;
+        }
+        .confidence-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: bold;
+            font-size: 12px;
+            color: #333;
+        }
+        .stealth-log {
+            background: rgba(0,0,0,0.9);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            border: 2px solid #e74c3c;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-info { background: rgba(52, 152, 219, 0.2); }
+        .log-success { background: rgba(39, 174, 96, 0.2); }
+        .log-warning { background: rgba(243, 156, 18, 0.2); }
+        .log-error { background: rgba(231, 76, 60, 0.2); }
+        .log-stealth { background: rgba(142, 68, 173, 0.2); }
+        .algorithm-panel {
+            background: rgba(142, 68, 173, 0.1);
+            border: 2px solid #8e44ad;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .algorithm-title {
+            color: #8e44ad;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .stealth-warning {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 Stealth Location Tracker</h1>
+            <p>Advanced location estimation without GPS permission using data analysis algorithms</p>
+        </div>
+
+        <div class="stealth-warning">
+            <strong>🔒 Stealth Mode Active:</strong> This system calculates location estimates using only network data, device fingerprinting, and advanced algorithms. No GPS permission required.
+        </div>
+
+        <div class="stealth-panel">
+            <h3>
+                <span id="status-indicator" class="status-indicator status-inactive"></span>
+                Stealth Tracking Status: <span id="tracking-status">Inactive</span>
+            </h3>
+            
+            <div class="controls">
+                <button class="btn btn-success" onclick="startStealthTracking()">🚀 Start Stealth Tracking</button>
+                <button class="btn" onclick="stopStealthTracking()">⏹️ Stop Tracking</button>
+                <button class="btn" onclick="calculateOnce()">🧮 Calculate Once</button>
+                <button class="btn" onclick="exportStealthData()">💾 Export Data</button>
+            </div>
+
+            <div class="data-item">
+                <span class="data-label">Calculation Interval:</span>
+                <span class="data-value">
+                    <select id="interval-select" onchange="updateInterval()">
+                        <option value="3000">3 seconds (High frequency)</option>
+                        <option value="5000" selected>5 seconds</option>
+                        <option value="10000">10 seconds</option>
+                        <option value="30000">30 seconds</option>
+                    </select>
+                </span>
+            </div>
+
+            <div class="data-item">
+                <span class="data-label">Total Calculations:</span>
+                <span class="data-value" id="calculation-count">0</span>
+            </div>
+
+            <div class="data-item">
+                <span class="data-label">Session Duration:</span>
+                <span class="data-value" id="session-duration">00:00:00</span>
+            </div>
+
+            <div class="data-item">
+                <span class="data-label">Location Confidence:</span>
+                <span class="data-value" id="confidence-level">0%</span>
+            </div>
+        </div>
+
+        <div class="algorithm-panel">
+            <div class="algorithm-title">🧮 Active Location Algorithms</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div>✅ IP Geolocation Analysis</div>
+                <div>✅ Network Triangulation</div>
+                <div>✅ Timezone Correlation</div>
+                <div>✅ ISP Infrastructure Mapping</div>
+                <div>✅ Connection Speed Analysis</div>
+                <div>✅ Device Fingerprint Location</div>
+                <div>✅ Language/Locale Analysis</div>
+                <div>✅ Network Latency Estimation</div>
+            </div>
+        </div>
+
+        <div class="location-grid" id="location-grid">
+            <!-- Location estimation cards will be populated here -->
+        </div>
+
+        <div class="stealth-log" id="stealth-log">
+            <div class="log-entry log-stealth">🔍 Stealth location tracking system initialized</div>
+            <div class="log-entry log-info">🧮 Advanced algorithms ready for location estimation</div>
+            <div class="log-entry log-warning">⚠️ No GPS permission required - using data analysis only</div>
+        </div>
+    </div>
+
+    <script>
+        let stealthInterval = null;
+        let trackingStartTime = null;
+        let calculationCount = 0;
+        let sessionDurationInterval = null;
+        let stealthData = [];
+        let previousCalculation = null;
+
+        function addLogEntry(message, type = 'info') {
+            const log = document.getElementById('stealth-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.innerHTML = `<span style="color: #adb5bd;">[${timestamp}]</span> ${message}`;
+            log.appendChild(entry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function updateStatus(status, className) {
+            document.getElementById('tracking-status').textContent = status;
+            const indicator = document.getElementById('status-indicator');
+            indicator.className = `status-indicator ${className}`;
+        }
+
+        function updateSessionDuration() {
+            if (trackingStartTime) {
+                const duration = Math.floor((Date.now() - trackingStartTime) / 1000);
+                const hours = Math.floor(duration / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((duration % 3600) / 60).toString().padStart(2, '0');
+                const seconds = (duration % 60).toString().padStart(2, '0');
+                document.getElementById('session-duration').textContent = `${hours}:${minutes}:${seconds}`;
+            }
+        }
+
+        // Advanced location estimation algorithms
+        class StealthLocationEstimator {
+            static async estimateLocation(apiData) {
+                const estimations = [];
+                let totalConfidence = 0;
+
+                // Algorithm 1: IP Geolocation (Primary)
+                if (apiData.geolocation) {
+                    const ipEstimation = this.analyzeIPLocation(apiData.geolocation, apiData.network);
+                    estimations.push(ipEstimation);
+                    totalConfidence += ipEstimation.confidence;
+                }
+
+                // Algorithm 2: Network Infrastructure Analysis
+                if (apiData.network) {
+                    const networkEstimation = this.analyzeNetworkInfrastructure(apiData.network);
+                    estimations.push(networkEstimation);
+                    totalConfidence += networkEstimation.confidence;
+                }
+
+                // Algorithm 3: Timezone and Language Correlation
+                if (apiData.device) {
+                    const timezoneEstimation = this.analyzeTimezoneLanguage(apiData.device);
+                    estimations.push(timezoneEstimation);
+                    totalConfidence += timezoneEstimation.confidence;
+                }
+
+                // Algorithm 4: Connection Performance Analysis
+                if (apiData.device && apiData.device.connection) {
+                    const connectionEstimation = this.analyzeConnectionPerformance(apiData.device.connection);
+                    estimations.push(connectionEstimation);
+                    totalConfidence += connectionEstimation.confidence;
+                }
+
+                // Algorithm 5: Device Fingerprint Location Correlation
+                if (apiData.fingerprint) {
+                    const fingerprintEstimation = this.analyzeDeviceFingerprint(apiData.fingerprint, apiData.device);
+                    estimations.push(fingerprintEstimation);
+                    totalConfidence += fingerprintEstimation.confidence;
+                }
+
+                // Weighted location calculation
+                const finalLocation = this.calculateWeightedLocation(estimations);
+                const averageConfidence = totalConfidence / estimations.length;
+
+                return {
+                    estimatedLocation: finalLocation,
+                    confidence: Math.min(averageConfidence, 95), // Cap at 95% since no GPS
+                    algorithms: estimations,
+                    totalAlgorithms: estimations.length,
+                    accuracy: this.estimateAccuracy(averageConfidence)
+                };
+            }
+
+            static analyzeIPLocation(geolocation, network) {
+                let confidence = 60; // Base confidence for IP location
+
+                // Increase confidence based on data quality
+                if (geolocation.city && geolocation.city !== 'Unknown') confidence += 10;
+                if (geolocation.region && geolocation.region !== 'Unknown') confidence += 5;
+                if (geolocation.latitude && geolocation.longitude) confidence += 15;
+                if (geolocation.isp && geolocation.organization) confidence += 5;
+
+                // Reduce confidence for VPN/Proxy
+                if (network && network.proxy) confidence -= 20;
+
+                return {
+                    algorithm: 'IP Geolocation',
+                    location: {
+                        latitude: geolocation.latitude || null,
+                        longitude: geolocation.longitude || null,
+                        city: geolocation.city,
+                        region: geolocation.region,
+                        country: geolocation.country
+                    },
+                    confidence: Math.max(confidence, 30),
+                    accuracy: geolocation.latitude ? '1-50km' : 'City level',
+                    source: 'IP Database Analysis'
+                };
+            }
+
+            static analyzeNetworkInfrastructure(network) {
+                let confidence = 40;
+                let estimatedLocation = {};
+
+                // Analyze ISP patterns
+                if (network.isp) {
+                    // Major ISP patterns can indicate regional presence
+                    const ispPatterns = this.analyzeISPPatterns(network.isp);
+                    confidence += ispPatterns.confidence;
+                    estimatedLocation = { ...estimatedLocation, ...ispPatterns.location };
+                }
+
+                // Analyze connection type
+                if (network.connectionType) {
+                    const connectionAnalysis = this.analyzeConnectionType(network.connectionType);
+                    confidence += connectionAnalysis.confidence;
+                }
+
+                return {
+                    algorithm: 'Network Infrastructure',
+                    location: estimatedLocation,
+                    confidence: Math.min(confidence, 70),
+                    accuracy: '5-100km',
+                    source: 'ISP Infrastructure Analysis'
+                };
+            }
+
+            static analyzeTimezoneLanguage(device) {
+                let confidence = 50;
+                let location = {};
+
+                if (device.timezone) {
+                    // Timezone to region mapping
+                    const timezoneLocation = this.mapTimezoneToLocation(device.timezone);
+                    location = { ...location, ...timezoneLocation.location };
+                    confidence += timezoneLocation.confidence;
+                }
+
+                if (device.language || device.languages) {
+                    // Language patterns
+                    const languageLocation = this.analyzeLanguagePatterns(device.language, device.languages);
+                    confidence += languageLocation.confidence;
+                }
+
+                return {
+                    algorithm: 'Timezone/Language Analysis',
+                    location: location,
+                    confidence: Math.min(confidence, 65),
+                    accuracy: 'Regional',
+                    source: 'Temporal and Linguistic Analysis'
+                };
+            }
+
+            static analyzeConnectionPerformance(connection) {
+                let confidence = 30;
+                let location = {};
+
+                // Connection speed patterns can indicate infrastructure quality/region
+                if (connection.downlink || connection.effectiveType) {
+                    const speedAnalysis = this.analyzeConnectionSpeed(connection);
+                    confidence += speedAnalysis.confidence;
+                    location = speedAnalysis.location;
+                }
+
+                // RTT analysis for rough distance estimation
+                if (connection.rtt) {
+                    const rttAnalysis = this.analyzeRTT(connection.rtt);
+                    confidence += rttAnalysis.confidence;
+                }
+
+                return {
+                    algorithm: 'Connection Performance',
+                    location: location,
+                    confidence: Math.min(confidence, 45),
+                    accuracy: 'Broad regional',
+                    source: 'Network Performance Analysis'
+                };
+            }
+
+            static analyzeDeviceFingerprint(fingerprint, device) {
+                let confidence = 35;
+                let location = {};
+
+                // Screen resolution patterns by region
+                if (device.screenResolution) {
+                    const screenAnalysis = this.analyzeScreenPatterns(device.screenResolution);
+                    confidence += screenAnalysis.confidence;
+                }
+
+                // Hardware patterns
+                if (device.hardwareConcurrency || device.deviceMemory) {
+                    const hardwareAnalysis = this.analyzeHardwarePatterns(device);
+                    confidence += hardwareAnalysis.confidence;
+                }
+
+                return {
+                    algorithm: 'Device Fingerprint',
+                    location: location,
+                    confidence: Math.min(confidence, 40),
+                    accuracy: 'Very broad',
+                    source: 'Device Characteristics Analysis'
+                };
+            }
+
+            // Helper methods for pattern analysis
+            static analyzeISPPatterns(isp) {
+                // Simplified ISP to region mapping
+                const ispPatterns = {
+                    'Comcast': { region: 'North America', confidence: 15 },
+                    'Verizon': { region: 'North America', confidence: 15 },
+                    'BT': { region: 'Europe/UK', confidence: 15 },
+                    'Deutsche Telekom': { region: 'Europe/Germany', confidence: 15 },
+                    'China Telecom': { region: 'Asia/China', confidence: 15 },
+                    'NTT': { region: 'Asia/Japan', confidence: 15 }
+                };
+
+                for (const [pattern, data] of Object.entries(ispPatterns)) {
+                    if (isp.toLowerCase().includes(pattern.toLowerCase())) {
+                        return {
+                            location: { estimatedRegion: data.region },
+                            confidence: data.confidence
+                        };
+                    }
+                }
+
+                return { location: {}, confidence: 5 };
+            }
+
+            static analyzeConnectionType(connectionType) {
+                const typeConfidence = {
+                    'fiber': 10, // Urban/developed areas
+                    'cable': 8,
+                    'dsl': 5,
+                    'cellular': 3,
+                    'satellite': 2
+                };
+
+                return { confidence: typeConfidence[connectionType?.toLowerCase()] || 2 };
+            }
+
+            static mapTimezoneToLocation(timezone) {
+                // Simplified timezone mapping
+                const timezoneMap = {
+                    'America/New_York': { region: 'US East Coast', confidence: 20 },
+                    'America/Los_Angeles': { region: 'US West Coast', confidence: 20 },
+                    'Europe/London': { region: 'UK', confidence: 20 },
+                    'Europe/Paris': { region: 'France', confidence: 20 },
+                    'Asia/Tokyo': { region: 'Japan', confidence: 20 },
+                    'Asia/Shanghai': { region: 'China', confidence: 20 }
+                };
+
+                for (const [tz, data] of Object.entries(timezoneMap)) {
+                    if (timezone.includes(tz.split('/')[1])) {
+                        return {
+                            location: { timezoneRegion: data.region },
+                            confidence: data.confidence
+                        };
+                    }
+                }
+
+                return { location: {}, confidence: 5 };
+            }
+
+            static analyzeLanguagePatterns(language, languages) {
+                // Language to region confidence
+                if (languages && languages.length > 0) {
+                    const primaryLang = languages[0];
+                    const langConfidence = {
+                        'en-US': 10,
+                        'en-GB': 10,
+                        'de': 8,
+                        'fr': 8,
+                        'ja': 8,
+                        'zh': 8
+                    };
+
+                    return { confidence: langConfidence[primaryLang] || 3 };
+                }
+
+                return { confidence: 0 };
+            }
+
+            static analyzeConnectionSpeed(connection) {
+                // Connection speed patterns by region/infrastructure
+                let confidence = 5;
+                let location = {};
+
+                if (connection.downlink) {
+                    if (connection.downlink > 50) {
+                        location.infrastructureQuality = 'High (Developed region)';
+                        confidence += 5;
+                    } else if (connection.downlink > 10) {
+                        location.infrastructureQuality = 'Medium';
+                        confidence += 3;
+                    }
+                }
+
+                return { location, confidence };
+            }
+
+            static analyzeRTT(rtt) {
+                // RTT patterns for distance estimation
+                let confidence = 3;
+                
+                if (rtt < 20) confidence += 5; // Likely close to servers
+                else if (rtt < 50) confidence += 3; // Regional
+                else if (rtt > 200) confidence += 2; // Possibly international
+
+                return { confidence };
+            }
+
+            static analyzeScreenPatterns(screenResolution) {
+                // Screen resolution patterns (very rough regional indicators)
+                return { confidence: 2 }; // Very low confidence
+            }
+
+            static analyzeHardwarePatterns(device) {
+                // Hardware patterns for regional device preferences
+                return { confidence: 2 }; // Very low confidence
+            }
+
+            static calculateWeightedLocation(estimations) {
+                let totalWeight = 0;
+                let weightedLat = 0;
+                let weightedLon = 0;
+                let bestLocation = null;
+
+                for (const estimation of estimations) {
+                    const weight = estimation.confidence / 100;
+                    totalWeight += weight;
+
+                    if (estimation.location.latitude && estimation.location.longitude) {
+                        weightedLat += estimation.location.latitude * weight;
+                        weightedLon += estimation.location.longitude * weight;
+                        
+                        if (!bestLocation || estimation.confidence > bestLocation.confidence) {
+                            bestLocation = estimation;
+                        }
+                    }
+                }
+
+                if (totalWeight > 0 && weightedLat && weightedLon) {
+                    return {
+                        latitude: weightedLat / totalWeight,
+                        longitude: weightedLon / totalWeight,
+                        source: 'Weighted calculation'
+                    };
+                }
+
+                return bestLocation?.location || { source: 'Insufficient data' };
+            }
+
+            static estimateAccuracy(confidence) {
+                if (confidence > 80) return '500m - 5km';
+                if (confidence > 60) return '1km - 20km';
+                if (confidence > 40) return '5km - 100km';
+                return '50km - 500km';
+            }
+        }
+
+        async function collectStealthLocationData() {
+            const startTime = Date.now();
+            
+            try {
+                updateStatus('Calculating...', 'status-calculating');
+                
+                // Collect comprehensive device data WITHOUT GPS permission
+                const deviceData = {
+                    // Device information
+                    screenResolution: `${screen.width}x${screen.height}`,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    language: navigator.language,
+                    languages: navigator.languages,
+                    platform: navigator.platform,
+                    userAgent: navigator.userAgent,
+                    
+                    // Hardware information
+                    hardwareConcurrency: navigator.hardwareConcurrency,
+                    deviceMemory: navigator.deviceMemory,
+                    
+                    // Connection information
+                    connection: navigator.connection ? {
+                        effectiveType: navigator.connection.effectiveType,
+                        downlink: navigator.connection.downlink,
+                        rtt: navigator.connection.rtt,
+                        type: navigator.connection.type,
+                        saveData: navigator.connection.saveData
+                    } : null,
+                    
+                    // Browser capabilities
+                    cookieEnabled: navigator.cookieEnabled,
+                    onlineStatus: navigator.onLine,
+                    
+                    // Window information
+                    windowSize: {
+                        innerWidth: window.innerWidth,
+                        innerHeight: window.innerHeight
+                    },
+                    
+                    // Performance information
+                    performance: performance.memory ? {
+                        usedJSHeapSize: performance.memory.usedJSHeapSize,
+                        totalJSHeapSize: performance.memory.totalJSHeapSize
+                    } : null,
+                    
+                    // Timestamp
+                    calculationTimestamp: new Date().toISOString(),
+                    calculationCount: calculationCount + 1,
+                    
+                    // NO GPS DATA - STEALTH MODE
+                    stealthMode: true,
+                    noGpsPermission: true
+                };
+
+                addLogEntry('🧮 Analyzing data patterns...', 'info');
+
+                // Send to server for comprehensive stealth analysis
+                const response = await fetch('http://localhost:3001/api/user-info/stealth-track', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        ...deviceData,
+                        trackingId: stealthData.length > 0 ? stealthData[0].trackingId : `stealth_${Date.now()}`,
+                        previousCalculation: previousCalculation
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    calculationCount++;
+                    document.getElementById('calculation-count').textContent = calculationCount;
+                    
+                    addLogEntry('🔍 Running advanced backend location algorithms...', 'stealth');
+                    
+                    // Use backend stealth analysis instead of frontend
+                    const stealthEstimation = data.stealthAnalysis;
+                    
+                    // Store calculation data
+                    const calculationPoint = {
+                        id: calculationCount,
+                        timestamp: new Date().toISOString(),
+                        apiData: data.data,
+                        stealthEstimation: stealthEstimation,
+                        processingTime: Date.now() - startTime,
+                        confidence: stealthEstimation.confidence,
+                        previousCalculation: previousCalculation,
+                        backendAlgorithms: true
+                    };
+                    
+                    stealthData.push(calculationPoint);
+                    previousCalculation = calculationPoint;
+                    
+                    // Update confidence level display
+                    document.getElementById('confidence-level').textContent = `${Math.round(stealthEstimation.confidence)}%`;
+                    
+                    // Update display
+                    updateStealthDisplay(data, stealthEstimation);
+                    
+                    // Log results with backend analysis
+                    if (stealthEstimation.stealthLocation && stealthEstimation.stealthLocation.latitude) {
+                        addLogEntry(`🎯 Location estimated: ${stealthEstimation.stealthLocation.latitude.toFixed(4)}, ${stealthEstimation.stealthLocation.longitude.toFixed(4)} (${Math.round(stealthEstimation.confidence)}% confidence)`, 'success');
+                    } else {
+                        addLogEntry(`📍 Regional estimation: ${data.data.geolocation?.city || 'Unknown'}, ${data.data.geolocation?.region || 'Unknown'} (${Math.round(stealthEstimation.confidence)}% confidence)`, 'warning');
+                    }
+                    
+                    addLogEntry(`✅ Calculation #${calculationCount} complete - ${stealthEstimation.algorithms} backend algorithms used`, 'success');
+                    
+                    updateStatus('Active', 'status-active');
+                    return data;
+                } else {
+                    throw new Error(data.message || 'Failed to collect stealth data');
+                }
+                
+            } catch (error) {
+                addLogEntry(`❌ Calculation error: ${error.message}`, 'error');
+                updateStatus('Error', 'status-inactive');
+                throw error;
+            }
+        }
+
+        function updateStealthDisplay(apiData, stealthEstimation) {
+            const grid = document.getElementById('location-grid');
+            grid.innerHTML = '';
+            
+            // Primary Location Estimation Card
+            const primaryCard = document.createElement('div');
+            primaryCard.className = stealthEstimation.confidence > 70 ? 'location-card calculated' : 'location-card estimated';
+            
+            const location = stealthEstimation.stealthLocation;
+            const isHighConfidence = stealthEstimation.confidence > 70;
+            
+            primaryCard.innerHTML = `
+                <h3>🎯 Stealth Location Estimate</h3>
+                ${location && location.latitude ? `
+                    <div class="coordinates ${isHighConfidence ? 'high-confidence' : ''}">
+                        <div class="coordinates-value">
+                            ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}
+                        </div>
+                        <small>Estimated accuracy: ${stealthEstimation.accuracy}</small>
+                    </div>
+                ` : `
+                    <div class="coordinates">
+                        <div class="coordinates-value">
+                            ${apiData.data.geolocation?.city || 'Unknown'}, ${apiData.data.geolocation?.region || 'Unknown'}
+                        </div>
+                        <small>Regional estimate only</small>
+                    </div>
+                `}
+                
+                <div class="confidence-meter">
+                    <div class="confidence-fill" style="width: ${stealthEstimation.confidence}%"></div>
+                    <div class="confidence-text">${Math.round(stealthEstimation.confidence)}% Confidence</div>
+                </div>
+                
+                <div class="data-item">
+                    <span class="data-label">Backend Algorithms:</span>
+                    <span class="data-value">${stealthEstimation.algorithms || 5}</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Estimation Method:</span>
+                    <span class="data-value">${location?.source || 'Multi-algorithm stealth'}</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Accuracy Range:</span>
+                    <span class="data-value">${stealthEstimation.accuracy}</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Analysis Source:</span>
+                    <span class="data-value">Advanced Backend</span>
+                </div>
+            `;
+            grid.appendChild(primaryCard);
+            
+            // Algorithm Breakdown Cards from backend
+            if (stealthEstimation.locationEstimations) {
+                for (const algorithm of stealthEstimation.locationEstimations) {
+                    const algCard = document.createElement('div');
+                    algCard.className = 'location-card';
+                    
+                    algCard.innerHTML = `
+                        <h3>🧮 ${algorithm.algorithm}</h3>
+                        <div class="data-item">
+                            <span class="data-label">Confidence:</span>
+                            <span class="data-value">${Math.round(algorithm.confidence)}%</span>
+                        </div>
+                        <div class="data-item">
+                            <span class="data-label">Accuracy:</span>
+                            <span class="data-value">${algorithm.accuracy}</span>
+                        </div>
+                        ${algorithm.location && algorithm.location.city ? `
+                            <div class="data-item">
+                                <span class="data-label">Location:</span>
+                                <span class="data-value">${algorithm.location.city}, ${algorithm.location.region}</span>
+                            </div>
+                        ` : ''}
+                        ${algorithm.location && algorithm.location.latitude ? `
+                            <div class="data-item">
+                                <span class="data-label">Coordinates:</span>
+                                <span class="data-value">${algorithm.location.latitude.toFixed(4)}, ${algorithm.location.longitude.toFixed(4)}</span>
+                            </div>
+                        ` : ''}
+                        ${algorithm.location && algorithm.location.estimatedRegion ? `
+                            <div class="data-item">
+                                <span class="data-label">Region:</span>
+                                <span class="data-value">${algorithm.location.estimatedRegion}</span>
+                            </div>
+                        ` : ''}
+                    `;
+                    grid.appendChild(algCard);
+                }
+            }
+            
+            // IP-based Location Card (fallback display)
+            if (apiData.data.geolocation) {
+                const ipCard = document.createElement('div');
+                ipCard.className = 'location-card';
+                
+                const ipLoc = apiData.data.geolocation;
+                ipCard.innerHTML = `
+                    <h3>🌐 IP Geolocation Base</h3>
+                    ${ipLoc.latitude && ipLoc.longitude ? `
+                        <div class="coordinates">
+                            <div class="coordinates-value">
+                                ${ipLoc.latitude.toFixed(6)}, ${ipLoc.longitude.toFixed(6)}
+                            </div>
+                            <small>Source: ${ipLoc.source || 'IP Database'}</small>
+                        </div>
+                    ` : ''}
+                    <div class="data-item">
+                        <span class="data-label">Country:</span>
+                        <span class="data-value">${ipLoc.country || 'Unknown'}</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">Region:</span>
+                        <span class="data-value">${ipLoc.region || 'Unknown'}</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">City:</span>
+                        <span class="data-value">${ipLoc.city || 'Unknown'}</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">ISP:</span>
+                        <span class="data-value">${ipLoc.isp || 'Unknown'}</span>
+                    </div>
+                `;
+                grid.appendChild(ipCard);
+            }
+            
+            // Network Information Card
+            if (apiData.data.network) {
+                const networkCard = document.createElement('div');
+                networkCard.className = 'location-card';
+                
+                const network = apiData.data.network;
+                networkCard.innerHTML = `
+                    <h3>🌍 Network Analysis</h3>
+                    <div class="data-item">
+                        <span class="data-label">IP Address:</span>
+                        <span class="data-value">${network.ip || 'Hidden'}</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">ISP:</span>
+                        <span class="data-value">${network.isp || 'Unknown'}</span>
+                    </div>
+                    <div class="data-item">
+                        <span class="data-label">Organization:</span>
+                        <span class="data-value">${network.organization || 'Unknown'}</span>
+                    </div>
+                    ${network.proxy ? `
+                        <div style="background: #f8d7da; padding: 8px; border-radius: 4px; color: #721c24; margin-top: 10px;">
+                            🔒 Proxy/VPN detected - using advanced analysis
+                        </div>
+                    ` : ''}
+                `;
+                grid.appendChild(networkCard);
+            }
+        }
+
+        function startStealthTracking() {
+            if (stealthInterval) {
+                addLogEntry('⚠️ Stealth tracking already active', 'warning');
+                return;
+            }
+            
+            const interval = parseInt(document.getElementById('interval-select').value);
+            trackingStartTime = Date.now();
+            
+            updateStatus('Active', 'status-active');
+            addLogEntry(`🚀 Started stealth tracking (${interval/1000}s interval)`, 'stealth');
+            addLogEntry('🔒 No GPS permission required - using data analysis only', 'info');
+            
+            // Start session duration counter
+            sessionDurationInterval = setInterval(updateSessionDuration, 1000);
+            
+            // Initial calculation
+            collectStealthLocationData();
+            
+            // Set up interval calculations
+            stealthInterval = setInterval(async () => {
+                try {
+                    await collectStealthLocationData();
+                } catch (error) {
+                    addLogEntry(`❌ Calculation error: ${error.message}`, 'error');
+                }
+            }, interval);
+        }
+
+        function stopStealthTracking() {
+            if (stealthInterval) {
+                clearInterval(stealthInterval);
+                stealthInterval = null;
+            }
+            
+            if (sessionDurationInterval) {
+                clearInterval(sessionDurationInterval);
+                sessionDurationInterval = null;
+            }
+            
+            updateStatus('Inactive', 'status-inactive');
+            addLogEntry('⏹️ Stealth tracking stopped', 'info');
+            
+            if (calculationCount > 0) {
+                addLogEntry(`📊 Session complete: ${calculationCount} location calculations performed`, 'success');
+            }
+        }
+
+        async function calculateOnce() {
+            updateStatus('Calculating...', 'status-calculating');
+            addLogEntry('🧮 Performing single location calculation...', 'stealth');
+            
+            try {
+                await collectStealthLocationData();
+            } catch (error) {
+                updateStatus('Error', 'status-inactive');
+            }
+        }
+
+        function updateInterval() {
+            const interval = parseInt(document.getElementById('interval-select').value);
+            
+            if (stealthInterval) {
+                stopStealthTracking();
+                setTimeout(() => startStealthTracking(), 100);
+            }
+            
+            addLogEntry(`⚙️ Calculation interval updated to ${interval/1000} seconds`, 'info');
+        }
+
+        function exportStealthData() {
+            if (stealthData.length === 0) {
+                addLogEntry('⚠️ No stealth data to export', 'warning');
+                return;
+            }
+            
+            const exportData = {
+                sessionInfo: {
+                    startTime: trackingStartTime ? new Date(trackingStartTime).toISOString() : null,
+                    endTime: new Date().toISOString(),
+                    totalCalculations: calculationCount,
+                    duration: trackingStartTime ? Date.now() - trackingStartTime : 0,
+                    stealthMode: true,
+                    noGpsPermission: true
+                },
+                calculations: stealthData
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `stealth-location-tracking-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            addLogEntry(`💾 Exported ${calculationCount} stealth calculations`, 'success');
+        }
+
+        // Initialize
+        addLogEntry('🎯 Stealth Location Tracker ready', 'stealth');
+        addLogEntry('🔒 Operating in stealth mode - no GPS permission required', 'info');
+        addLogEntry('🧮 Advanced algorithms will analyze network data for location estimation', 'info');
+    </script>
+</body>
+</html>

